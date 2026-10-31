@@ -1,5 +1,6 @@
 #include "server/systems/mob_ai.h"
 
+#include "server/loot_eligibility.h"
 #include "server/systems/combat.h"
 #include "server/systems/movement.h"
 #include "shared/game/config.h"
@@ -679,8 +680,10 @@ Entity MobAiSystem::nearestAttacker(World& world, Entity self, Vec2 from, Realm 
     double bestSq = radius * radius;
     for (const Bounty::Share& share : bounty->contributors) {
         if (share.damage <= 0.0) continue;
-        if (!isStanding(world, share.player)) continue;
-        const Transform* transform = world.tryGet<Transform>(share.player);
+        // Connection-keyed: a respawned flower still counts as the hitter.
+        const Entity body = liveContributorBody(world, share);
+        if (body == NULL_ENTITY || !isStanding(world, body)) continue;
+        const Transform* transform = world.tryGet<Transform>(body);
         if (transform == nullptr) continue;
         if (transform->realm != realm) continue;
         const double gapSq = distanceSq(from, transform->position);
@@ -690,7 +693,7 @@ Entity MobAiSystem::nearestAttacker(World& world, Entity self, Vec2 from, Realm 
         // player expects it to round on.
         if (gapSq <= bestSq) {
             bestSq = gapSq;
-            best = share.player;
+            best = body;
         }
     }
     return best;

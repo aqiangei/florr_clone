@@ -715,9 +715,15 @@ void App::frame(double dt) {
     // The renderer's switches live in the settings menu, so they are copied
     // across every frame rather than the menu reaching into the renderer.
     renderer_.options = menus_.settings().render;
-    // Not a setting: held, the way the HUD and the minimap read it. The copy
-    // above resets it every frame, so it has to be put back after it.
-    renderer_.options.rarityGlow = window_.keyDown(Key::LeftAlt) || window_.keyDown(Key::RightAlt);
+    // ALT is a latch (default off): exact HUD numbers, spawn bands, rarity
+    // glow. Skip while typing so chat / fields keep Alt as a modifier.
+    if (!chatOpen_ && !menus_.wantsText() &&
+        (window_.keyPressed(Key::LeftAlt) || window_.keyPressed(Key::RightAlt))) {
+        altMode_ = !altMode_;
+    }
+    // The copy above resets it every frame, so it has to be put back after it.
+    renderer_.options.rarityGlow = altMode_;
+    menus_.setAltMode(altMode_);
     camera_.userZoom = menus_.settings().zoom;
     // The petals' share of the zoom, read off the account's own loadout. It is
     // not on the wire, as in the browser: the server works the same figure

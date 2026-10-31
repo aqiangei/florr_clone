@@ -33,6 +33,68 @@ EM_JS(int, flix_open_external_link, (const char* url), {
     opened.opener = null;
     return 0;
 });
+
+/// AshFlor QQ dialog: join link + copyable group id (same UX as ashflor DOM::open_qq_group).
+EM_JS(void, flix_open_ashflor_qq, (const char* groupId, const char* inviteUrl), {
+    const id = UTF8ToString(groupId);
+    const invite = UTF8ToString(inviteUrl);
+    if (!document.getElementById("ashflor-qq-dialog-style")) {
+        const style = document.createElement("style");
+        style.id = "ashflor-qq-dialog-style";
+        style.textContent =
+            "#ashflor-qq-dialog{border:2px solid #d7bd79;border-radius:20px;padding:28px 28px 22px;"
+            + "background:#fff9e9;color:#384638;font-family:system-ui,sans-serif;"
+            + "width:min(340px,calc(100vw - 48px));max-width:calc(100vw - 48px);text-align:center;"
+            + "box-shadow:0 18px 80px #0007}"
+            + "#ashflor-qq-dialog::backdrop{background:rgba(20,28,22,.45)}"
+            + "#ashflor-qq-dialog h2{margin:12px 0 8px;font-size:1.35rem}"
+            + "#ashflor-qq-dialog p{margin:0 0 10px}"
+            + "#ashflor-qq-dialog .qq-hint{font-size:14px;opacity:.85;line-height:1.4}"
+            + "#ashflor-qq-dialog .qq-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px}"
+            + "#ashflor-qq-dialog .qq-row{display:flex;gap:10px}"
+            + "#ashflor-qq-dialog .qq-btn{"
+            + "display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;"
+            + "width:100%;min-height:44px;padding:11px 16px;border-radius:12px;font-size:15px;"
+            + "font-weight:600;cursor:pointer;text-decoration:none;border:2px solid transparent;"
+            + "-webkit-tap-highlight-color:transparent;user-select:none}"
+            + "#ashflor-qq-dialog .qq-btn-primary{background:#48a575;color:#fff;border-color:#3a8a60}"
+            + "#ashflor-qq-dialog .qq-btn-primary:hover{background:#3f9668}"
+            + "#ashflor-qq-dialog .qq-btn-secondary{background:#f3ead3;color:#384638;border-color:#d7bd79}"
+            + "#ashflor-qq-dialog .qq-btn-secondary:hover{background:#ebe0c4}"
+            + "#ashflor-qq-dialog [data-status]{min-height:20px;margin:10px 0 0;font-size:14px}";
+        document.head.appendChild(style);
+    }
+    const old = document.getElementById("ashflor-qq-dialog");
+    if (old) old.remove();
+    const dialog = document.createElement("dialog");
+    dialog.id = "ashflor-qq-dialog";
+    dialog.innerHTML =
+        "<h2>Ashflor 交流群</h2>"
+        + "<p>QQ群：<strong>" + id + "</strong></p>"
+        + "<p class=\"qq-hint\">打不开 QQ 时，可以复制群号搜索加入。</p>"
+        + "<div class=\"qq-actions\">"
+        +   "<a class=\"qq-btn qq-btn-primary\" href=\"" + invite + "\" target=\"_blank\" rel=\"noopener noreferrer\">加入 QQ 群</a>"
+        +   "<div class=\"qq-row\">"
+        +     "<button type=\"button\" class=\"qq-btn qq-btn-secondary\" data-copy>复制群号</button>"
+        +     "<button type=\"button\" class=\"qq-btn qq-btn-secondary\" data-close>关闭</button>"
+        +   "</div>"
+        + "</div>"
+        + "<p data-status role=\"status\"></p>";
+    dialog.querySelector("[data-copy]").onclick = async function() {
+        const status = dialog.querySelector("[data-status]");
+        try { await navigator.clipboard.writeText(id); status.textContent = "群号已复制"; }
+        catch (e) { status.textContent = "请手动复制群号：" + id; }
+    };
+    dialog.querySelector("[data-close]").onclick = function() { dialog.close(); };
+    dialog.addEventListener("click", function(event) {
+        if (event.target === dialog) dialog.close();
+    });
+    dialog.onclose = function() { dialog.remove(); };
+    for (const name of ["keydown", "keyup", "mousedown", "mouseup", "touchstart", "touchend", "touchmove"])
+        dialog.addEventListener(name, function(event) { event.stopPropagation(); });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+});
 #endif
 
 bool openExternalLink(const std::string& url) {
@@ -44,6 +106,14 @@ bool openExternalLink(const std::string& url) {
     std::fprintf(stderr, "flowrix: could not open %s (%s)\n", url.c_str(), SDL_GetError());
 #endif
     return false;
+}
+
+void openAshflorQqGroup() {
+#ifdef __EMSCRIPTEN__
+    flix_open_ashflor_qq(kAshflorQqGroupId, kAshflorQqInvite);
+#else
+    openExternalLink(kAshflorQqInvite);
+#endif
 }
 
 namespace {
@@ -1109,6 +1179,8 @@ const std::array<MenuSystem::StripSlot, kStripSlotCount>& MenuSystem::strip() {
         // The talents button's purple, which is also the card's (kAccountSkin).
         {MenuId::Account,       A::OpenMenu, "account",       true,  kAccountSkin.fill,
          kAccountSkin.border},
+        // AshFlor QQ group — same invite as ashflor title-screen badge.
+        {MenuId::None,          A::Qq,       "qq",            true,  0x12B7F5u, 0x0E92C4u},
         {MenuId::None,          A::Discord,  "discord",       true,  0x5865F2u, 0x4752C4u},
         {MenuId::Debug,         A::OpenMenu, "debug",         true,  0x666666u, 0x4D4D4Du},
         // The panel's own card colours, so the button says which card it opens.
@@ -1127,6 +1199,7 @@ void MenuSystem::activateStripSlot(int index) {
     switch (slot.action) {
         case StripAction::Exit: exitRequested_ = true; return;
         case StripAction::Discord: openExternalLink(kDiscordInvite); return;
+        case StripAction::Qq: openAshflorQqGroup(); return;
         case StripAction::OpenMenu: break;
     }
     // Opening the panel is what marks the changelog read, which is what stops
@@ -1150,7 +1223,8 @@ void MenuSystem::drawIconStrip(Canvas& canvas, Window& window, double timeSecond
         if (slot.action == StripAction::Exit) visible[static_cast<std::size_t>(i)] = inGame_;
         // What changed and where to talk about it are read before a run, not
         // during one: both belong to the title screen only.
-        else if (slot.action == StripAction::Discord || slot.menu == MenuId::Changelog)
+        else if (slot.action == StripAction::Discord || slot.action == StripAction::Qq ||
+                 slot.menu == MenuId::Changelog)
             visible[static_cast<std::size_t>(i)] = !inGame_;
         else if (slot.menu == MenuId::Debug)
             visible[static_cast<std::size_t>(i)] = settings_.showDebugButton;
@@ -2543,6 +2617,7 @@ void MenuSystem::renderOpenPanel(Canvas& canvas, Window& window, NetClient& net,
                     drag_,     timeSeconds, dt,  panelRect_, false};
     ctx.adminGrantOffered = adminGrantOffered_;
     ctx.profiling = profiling_;
+    ctx.altMode = altMode_;
     // As the strip last laid it out, which on the title screen is the frame
     // before -- settings is painted under the strip there -- and the gear
     // never moves between two frames.

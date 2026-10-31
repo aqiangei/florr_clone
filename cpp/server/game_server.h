@@ -1012,6 +1012,10 @@ private:
     /// Skipped entirely while nobody is logged in, exactly as the browser
     /// server's own interval is: an idle server should send nothing.
     void broadcastDebugStats();
+    /// Top-right online roster under the minimap: name / level / guild / map.
+    /// At most once every two seconds, and only when the fingerprint changes,
+    /// so an idle lobby is not a steady unicast tax.
+    void serviceOnlineRoster(double nowMillis);
 
     // -- lifecycle ---------------------------------------------------------
     Entity spawnPlayer(Session&);
@@ -1477,6 +1481,11 @@ private:
     /// by lower-cased username, mapped to its guildLocation().
     std::unordered_map<std::string, std::string> guildPresence_;
     double nextGuildPresenceMillis_ = 0;
+    /// Last OnlineRoster payload fingerprint (concatenated rows); empty until
+    /// the first send. Compared before any unicast so unchanged rosters cost
+    /// only the cheap string build once per interval.
+    std::string onlineRosterFingerprint_;
+    double nextOnlineRosterMillis_ = 0;
 
     SquadRoster squads_;
     /// The flattened form the loot and XP rules read, rebuilt each tick.

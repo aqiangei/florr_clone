@@ -261,9 +261,8 @@ void drawFlowerFace(Canvas& canvas, std::uint32_t colour, double radius, double 
 
 void App::drawHud(Canvas& canvas, double time) {
     const SelfState& self = net_.view().self();
-    // ALT swaps every abbreviated number on this surface for its exact value,
-    // and reveals the other players on the minimap.
-    const bool altHeld = window_.keyDown(Key::LeftAlt) || window_.keyDown(Key::RightAlt);
+    // altMode_ (ALT toggle) swaps abbreviated HUD numbers for exact values.
+    const bool altHeld = altMode_;
 
     // Invulnerability rides in the replicated state bits of the player's own
     // body rather than in SelfState, so the flag is read back off the entity.
@@ -340,6 +339,7 @@ void App::drawHud(Canvas& canvas, double time) {
     canvas.restore();
 
     drawMinimap(canvas);
+    drawOnlineRoster(canvas);
 
     const double bossBarsBottom = drawBossBars(canvas, altHeld);
     // Under the boss bars, which share the top of the screen with it and are

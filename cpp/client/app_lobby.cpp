@@ -856,7 +856,7 @@ void App::drawTitleXpBar(Canvas& canvas, const Rect& track) {
 
     // ALT for the exact figures, as on the in-game bar.
     const LevelProgress progress = levelFromTotalXp(net_.profile().totalXp);
-    const bool altHeld = window_.keyDown(Key::LeftAlt) || window_.keyDown(Key::RightAlt);
+    const bool altHeld = altMode_;
     TextStyle label;
     label.size = std::max(h * kTitleXpTextShare, kTitleXpMinTextSize);
     label.align = Align::Centre;

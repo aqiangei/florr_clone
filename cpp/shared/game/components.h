@@ -433,19 +433,35 @@ struct SpongeDamageState {
 ///
 /// Contributions are tracked so that loot and XP go to everyone who fought the
 /// mob rather than whoever happened to land the last hit.
+///
+/// Shares are keyed by CONNECTION when one is known -- the same reason
+/// LootClaim is. A flower is destroyed and rebuilt on every death (and on a
+/// leave to the title screen that rejoins the map), so an entity-only ledger
+/// would throw away damage the moment the player respawned. The connection is
+/// stable across that; a full reconnect is a new session and forfeits, as
+/// drops already do. Zero owner is a bot / harness, keyed by body alone.
 struct Bounty {
     double xp = 0;
     struct Share {
         Entity player = NULL_ENTITY;
+        net::ConnectionId owner = 0;
         double damage = 0;
     };
     std::vector<Share> contributors;
 
-    void credit(Entity player, double damage) {
+    void credit(Entity player, double damage, net::ConnectionId owner = 0) {
         for (Share& s : contributors) {
-            if (s.player == player) { s.damage += damage; return; }
+            if (owner != 0 && s.owner == owner) {
+                s.player = player;
+                s.damage += damage;
+                return;
+            }
+            if (owner == 0 && s.owner == 0 && s.player == player) {
+                s.damage += damage;
+                return;
+            }
         }
-        contributors.push_back({player, damage});
+        contributors.push_back({player, owner, damage});
     }
 };
 

@@ -862,6 +862,9 @@ void GameServer::tick(double nowMillis) {
     // Above the idle gate too: a member logging out of the title screen
     // changes every guildmate's roster whether or not anybody is playing.
     serviceGuildPresence(nowMillis);
+    // Public online list under the minimap (same session walk as the admin
+    // crown Players tab; fingerprint skips unchanged payloads).
+    serviceOnlineRoster(nowMillis);
     markTickPhase("sessions");
 
     // Housekeeping, ABOVE the idle gate: an account registered by somebody
@@ -1775,15 +1778,7 @@ void GameServer::handleChangePassword(Session& session, net::Connection& connect
         return;
     }
 
-    // An admin account's password is never changed in game (setPassword says
-    // why, and refuses it again), so it is refused before a bcrypt verify or
-    // an attempt from the budget is spent finding that out. On the account's
-    // flag, not the session's: a banned admin is locked all the same.
-    if (const Account* own = std::as_const(database_).findUserById(session.userId);
-        own != nullptr && own->admin) {
-        sendChangePasswordResult(connection, false, "", Database::kAdminPasswordLocked);
-        return;
-    }
+    // AshFlor BJ: admins may change their password here (same budgets as anyone).
 
     // Held to the login budgets, both of them: this costs a bcrypt verify and
     // then a bcrypt hash, so it is strictly dearer than a login, and a wrong
@@ -1879,14 +1874,12 @@ void GameServer::handleSetUsername(Session& session, net::Connection& connection
         sendSetUsernameResult(connection, false, "", "Too many attempts. Wait a moment.");
         return;
     }
-    // A guest names itself once, and only a guest: the flag is the server's,
-    // set when it made the account and cleared by the rename below, so
-    // neither a registered account nor a guest that already chose can ask
-    // again, whatever its name looks like.
+    // Upstream: guests name themselves once. AshFlor BJ: database admins may
+    // rename too (session.admin is the persistent flag, not a temp grant).
     const Account* account = std::as_const(database_).findUserById(session.userId);
-    if (account == nullptr || !account->guest) {
+    if (account == nullptr || (!account->guest && !session.admin)) {
         sendSetUsernameResult(connection, false, "",
-                              "Only a guest account can set its username, and only once.");
+                              "Only a guest or admin account can set its username.");
         return;
     }
 
@@ -3601,8 +3594,9 @@ void GameServer::bankKills() {
         if (const Bounty* bounty = world_.tryGet<Bounty>(death.entity)) {
             for (const Bounty::Share& share : bounty->contributors) {
                 if (share.damage <= 0.0) continue;
-                if (world_.isAlive(share.player) && !world_.has<PlayerTag>(share.player)) continue;
-                ranked.push_back(share);
+                const Bounty::Share live = refreshedShare(world_, share);
+                if (world_.isAlive(live.player) && !world_.has<PlayerTag>(live.player)) continue;
+                ranked.push_back(live);
             }
         }
         // Stable, because the ledger is in first-hit order and the reference's
@@ -4628,6 +4622,73 @@ void GameServer::serviceGuildPresence(double nowMillis) {
     }
     const Json& guilds = database_.storedTable("guilds");
     for (const std::string& guild : guildNames) broadcastGuildRoster(guilds[guild]);
+}
+
+void GameServer::serviceOnlineRoster(double nowMillis) {
+    // Same cadence spirit as guild presence: a second or two behind is fine,
+    // and rebuilding every tick for an unchanged list is free work on the
+    // hot path. Fingerprint short-circuits the broadcast.
+    constexpr double kIntervalMillis = 2000.0;
+    constexpr std::size_t kMaxRows = 64;
+    if (nowMillis < nextOnlineRosterMillis_) return;
+    nextOnlineRosterMillis_ = nowMillis + kIntervalMillis;
+
+    struct Row {
+        std::string name;
+        std::uint16_t level = 1;
+        std::string guild;
+        std::string location;
+        std::string sortKey;
+    };
+    std::vector<Row> rows;
+    rows.reserve(sessions_.size());
+    for (const auto& entry : sessions_) {
+        const Session& session = entry.second;
+        // Mirror the crown Players tab's universe: signed-in accounts. Title-
+        // screen sitters stay listed with an empty location (protocol).
+        if (!session.authenticated() || session.username.empty()) continue;
+        Row row;
+        row.name = session.displayName.empty() ? session.username : session.displayName;
+        row.sortKey = lowerCase(session.username);
+        row.guild = guildNameForUser(session.username);
+        row.location = guildLocation(session);
+        if (const PlayerRecord* progress = database_.findProgress(session.userId)) {
+            const int level = levelFromTotalXp(progress->totalXp).level;
+            row.level = static_cast<std::uint16_t>(std::clamp(level, 1, 65535));
+        }
+        rows.push_back(std::move(row));
+    }
+    std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
+        if (a.sortKey != b.sortKey) return a.sortKey < b.sortKey;
+        return a.name < b.name;
+    });
+    if (rows.size() > kMaxRows) rows.resize(kMaxRows);
+
+    std::string fingerprint;
+    fingerprint.reserve(rows.size() * 32);
+    for (const Row& row : rows) {
+        fingerprint.append(row.name);
+        fingerprint.push_back('\n');
+        fingerprint.append(std::to_string(row.level));
+        fingerprint.push_back('\n');
+        fingerprint.append(row.guild);
+        fingerprint.push_back('\n');
+        fingerprint.append(row.location);
+        fingerprint.push_back('\n');
+    }
+    if (fingerprint == onlineRosterFingerprint_) return;
+    onlineRosterFingerprint_ = std::move(fingerprint);
+
+    ByteWriter w;
+    w.u8(static_cast<std::uint8_t>(net::ServerMessage::OnlineRoster));
+    w.u8(static_cast<std::uint8_t>(rows.size()));
+    for (const Row& row : rows) {
+        w.str(row.name);
+        w.u16(row.level);
+        w.str(row.guild);
+        w.str(row.location);
+    }
+    broadcastToAuthenticated(w);
 }
 
 void GameServer::sendNoGuild(net::Connection& connection) {

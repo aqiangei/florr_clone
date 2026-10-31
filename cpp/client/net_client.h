@@ -917,6 +917,17 @@ public:
 
     const SquadState& squad() const { return squad_; }
 
+    /// Live signed-in players for the top-right roster under the minimap
+    /// (ServerMessage::OnlineRoster). Same session universe as the admin crown
+    /// Players tab, pushed to everyone.
+    struct OnlineRosterEntry {
+        std::string name;
+        std::uint16_t level = 1;
+        std::string guild;
+        std::string location;
+    };
+    const std::vector<OnlineRosterEntry>& onlineRoster() const { return onlineRoster_; }
+
     const GuildState& guild() const { return guild_; }
     /// Mutable because the panel answers an invite locally the moment it sends
     /// the reply, exactly as the reference clears `pendingInvite` on click.
@@ -1064,6 +1075,7 @@ private:
     /// open document's scope and key.
     void beginAdminDb(ByteWriter&, net::AdminDbOp);
     void handleAdminDashboard(ByteReader&);
+    void handleOnlineRoster(ByteReader&);
     void beginAdminDashboard(ByteWriter&, net::AdminDashboardOp);
     /// Wipes the dashboard's state and moves its generation (see
     /// AdminDashboardState::generation).
@@ -1131,6 +1143,7 @@ private:
     std::uint32_t notificationsRevision_ = 0;
 
     SquadState squad_;
+    std::vector<OnlineRosterEntry> onlineRoster_;
     GuildState guild_;
     GuildInvite guildInvite_;
     CraftOutcome craftOutcome_;

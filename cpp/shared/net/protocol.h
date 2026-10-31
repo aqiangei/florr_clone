@@ -438,6 +438,11 @@ enum class ServerMessage : std::uint8_t {
                         ///< Profiles and deltas together, per connection, from
                         ///< 1; ProfileCheck reports the last one applied.
                         ///< (Version 66.)
+    OnlineRoster,       ///< u8 count (max 64), { str name, u16 level, str guild,
+                        ///< str location }*. Live signed-in players for the
+                        ///< top-right roster under the minimap. `location` is
+                        ///< the biome label (empty on the title / death card).
+                        ///< Additive: older clients skip an unknown id.
 };
 
 // ---------------------------------------------------------------------------

@@ -120,6 +120,7 @@ const char* serverMessageName(std::uint8_t id) {
         case net::ServerMessage::SetUsernameResult:   return "setUsernameResult";
         case net::ServerMessage::Teleported:          return "teleported";
         case net::ServerMessage::ProfileDelta:        return "profileDelta";
+        case net::ServerMessage::OnlineRoster:        return "onlineRoster";
     }
     return "unknown";
 }
@@ -311,6 +312,7 @@ void NetClient::forgetAccount() {
     notificationsPaging_ = false;
     ++notificationsRevision_;
     squad_ = SquadState{};
+    onlineRoster_.clear();
     guild_ = GuildState{};
     guildInvite_ = GuildInvite{};
     craftOutcome_ = CraftOutcome{};
@@ -1165,6 +1167,7 @@ void NetClient::onMessage(net::Connection& connection, ByteReader& reader) {
         case net::ServerMessage::AdminDb:       handleAdminDb(reader); break;
         case net::ServerMessage::AdminDashboard: handleAdminDashboard(reader); break;
         case net::ServerMessage::LeftWorld:     handleLeftWorld(); break;
+        case net::ServerMessage::OnlineRoster:  handleOnlineRoster(reader); break;
         default:
             // An unknown id means the server is newer than this build. The
             // frame is already fully buffered, so skipping it is safe and
@@ -1602,6 +1605,24 @@ void NetClient::handleNotifications(ByteReader& reader) {
     notificationsMore_ = more;
     notificationsPending_ = false;
     ++notificationsRevision_;
+}
+
+void NetClient::handleOnlineRoster(ByteReader& reader) {
+    const std::uint8_t count = reader.u8();
+    if (!reader.ok()) return;
+    std::vector<OnlineRosterEntry> next;
+    next.reserve(count);
+    for (std::uint8_t i = 0; i < count; ++i) {
+        OnlineRosterEntry row;
+        row.name = reader.str();
+        row.level = reader.u16();
+        row.guild = reader.str();
+        row.location = reader.str();
+        if (!reader.ok()) return;
+        if (row.level < 1) row.level = 1;
+        next.push_back(std::move(row));
+    }
+    onlineRoster_ = std::move(next);
 }
 
 void NetClient::handleSquadUpdate(ByteReader& reader) {

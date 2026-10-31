@@ -563,6 +563,9 @@ private:
     /// flower still wears its plate there.
     void drawSelfManaBar(Canvas&, const RemoteEntity&, const Camera&, Vec2 at) const;
     void drawCorpse(Canvas&, const RemoteEntity&, const Camera&, Vec2 at, double timeSeconds) const;
+    /// Name only on a downed body (no bar / level). Amber so a revive target
+    /// reads apart from the living white plates. Skips the viewer's own corpse.
+    void drawCorpseName(Canvas&, const RemoteEntity&, const Camera&, Vec2 at) const;
     /// Every live bubble, over the flower that said it. Drawn last of all, on
     /// top of the whole world: a line somebody is saying must not end up
     /// behind a mob that happens to be standing in front of them.

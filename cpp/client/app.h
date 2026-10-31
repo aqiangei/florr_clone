@@ -323,10 +323,15 @@ private:
     /// whole of the map the flower is standing on fitted into it -- with its
     /// gold border and its map caption.
     void drawMinimap(Canvas&);
+    /// Scrollable online roster under the minimap (name / level / guild / map),
+    /// fed by ServerMessage::OnlineRoster.
+    void drawOnlineRoster(Canvas&);
+    /// Wheel over the roster list; true when the zoom must not also move.
+    bool scrollOnlineRoster();
     /// The maze realm's map: the whole layout rasterised, corridors light and
     /// tinted by depth band, walls dark, with the same player dots the
     /// overworld map draws. Replaces the world minimap inside the maze.
-    void drawMazeMinimap(Canvas&, bool altHeld);
+    void drawMazeMinimap(Canvas&);
     /// The arena realm has no map to show; the reference puts the live
     /// scoreboard in the minimap's corner instead.
     void drawArenaLeaderboard(Canvas&);
@@ -677,6 +682,12 @@ private:
     /// How far the transcript is scrolled back, in pixels off its bottom. Zero
     /// is the resting state: newest line just above the input slot.
     double chatScroll_ = 0;
+    /// Online roster under the minimap: scroll offset and last painted box.
+    double onlineRosterScroll_ = 0;
+    Rect onlineRosterBox_{};
+    /// ALT press toggles exact numbers / spawn bands / rarity glow (default off).
+    /// Minimap other players + names stay always on; unrelated to this flag.
+    bool altMode_ = false;
     /// The last line count drawChat saw, so a line that ARRIVES can put the
     /// box back at the bottom -- which is what the reference's
     /// `scrollTop = scrollHeight` on every message does.

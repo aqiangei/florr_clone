@@ -113,11 +113,11 @@ std::size_t fieldCap(int field) {
     }
 }
 
-/// Whether the box is on the card for this account: the username box only for
-/// a guest, and the current-password box only for an account whose owner has
-/// one to type.
-bool fieldShown(int field, const Profile& profile) {
-    if (field == kUsername) return profile.guest;
+/// Whether the box is on the card for this account: the username box for a
+/// guest or an admin (AshFlor BJ), and the current-password box only for an
+/// account whose owner has one to type.
+bool fieldShown(int field, const Profile& profile, bool admin) {
+    if (field == kUsername) return profile.guest || admin;
     if (field == kCurrentPassword) return profile.hasPassword;
     return true;
 }
@@ -178,10 +178,10 @@ void focusField(PanelState& st, int field, double timeSeconds) {
 }
 
 /// The next box Tab lands on, skipping the ones this account is not shown.
-int nextField(int from, const Profile& profile) {
+int nextField(int from, const Profile& profile, bool admin) {
     for (int step = 1; step <= kFieldCount; ++step) {
         const int field = (from + step) % kFieldCount;
-        if (fieldShown(field, profile)) return field;
+        if (fieldShown(field, profile, admin)) return field;
     }
     return -1;
 }
@@ -207,7 +207,9 @@ bool confirm(PanelState& st, int button, bool ask, double timeSeconds) {
 // Each shared by its button and by Enter in its boxes, so the two cannot drift.
 
 void submitUsername(MenuContext& ctx, PanelState& st) {
-    if (st.username.pending || !ctx.net.profile().guest) return;
+    const Profile& profile = ctx.net.profile();
+    const bool admin = ctx.net.isSkinAdmin();
+    if (st.username.pending || (!profile.guest && !admin)) return;
     const std::string name = trimmed(st.values[kUsername]);
     st.username.ok = false;
     if (name.empty()) {
@@ -215,9 +217,9 @@ void submitUsername(MenuContext& ctx, PanelState& st) {
         st.armed = kNoButton;
         return;
     }
-    // A name is for good: the first press says so on the button, the second
-    // sends it.
-    if (!confirm(st, kSetUsername, true, ctx.timeSeconds)) {
+    // Guests pick once for good (confirm twice). Admins may rename again, so
+    // one press is enough after the server already allows it.
+    if (!confirm(st, kSetUsername, profile.guest, ctx.timeSeconds)) {
         st.username.message.clear();
         return;
     }
@@ -491,9 +493,12 @@ bool AccountPanel::render(MenuContext& ctx) {
     if (st.armed != kNoButton && ctx.timeSeconds >= st.armedUntil) st.armed = kNoButton;
 
     readAnswers(ctx, st);
+    const bool admin = ctx.net.isSkinAdmin();
     // A box the account no longer shows -- the username box, the moment the
     // name is set -- cannot keep the caret.
-    if (st.focused >= 0 && !fieldShown(st.focused, profile)) focusField(st, -1, ctx.timeSeconds);
+    if (st.focused >= 0 && !fieldShown(st.focused, profile, admin)) {
+        focusField(st, -1, ctx.timeSeconds);
+    }
 
     // Keys first, so a keystroke shows in the paint that follows it.
     if (st.focused >= 0) {
@@ -501,7 +506,7 @@ bool AccountPanel::render(MenuContext& ctx) {
         if (ctx.window.keyPressed(Key::Escape)) {
             focusField(st, -1, ctx.timeSeconds);
         } else if (ctx.window.keyPressed(Key::Tab)) {
-            focusField(st, nextField(st.focused, profile), ctx.timeSeconds);
+            focusField(st, nextField(st.focused, profile, admin), ctx.timeSeconds);
         } else if (ctx.window.keyPressed(Key::Enter)) {
             // Enter submits the form the box belongs to.
             if (st.focused == kUsername) submitUsername(ctx, st);
@@ -583,8 +588,12 @@ bool AccountPanel::render(MenuContext& ctx) {
 
         // --- username -----------------------------------------------------------
         p.heading("Username");
-        if (profile.guest) {
-            p.note("A guest account can choose its username once. It cannot be changed later.");
+        if (profile.guest || admin) {
+            if (profile.guest) {
+                p.note("A guest account can choose its username once. It cannot be changed later.");
+            } else {
+                p.note("Admins can change their username.");
+            }
             p.field(kUsername, "New username");
             p.answer(st.username);
             const bool armed = armedNow(st, kSetUsername, ctx.timeSeconds);

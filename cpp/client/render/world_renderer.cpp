@@ -173,6 +173,10 @@ constexpr std::uint32_t kWornDiscOutline = 0x111111u;
 /// beetle wears.
 constexpr std::uint32_t kUndeadBody = 0x83B05Du;
 
+/// Downed-player name tag (ashflor RenderName amber), so a corpse reads as a
+/// revive target rather than another living white plate.
+constexpr std::uint32_t kCorpseName = 0xFFB060u;
+
 /// Whether a flower is drawn wrapped in the bandage: for as long as it wears
 /// one (user, 2026-10-22: "always show the bandage drawing when it is
 /// equipped"), and while it is Undead.
@@ -2647,6 +2651,25 @@ void WorldRenderer::drawCorpse(Canvas& canvas, const RemoteEntity& entity, const
     canvas.restore();
 }
 
+void WorldRenderer::drawCorpseName(Canvas& canvas, const RemoteEntity& entity,
+                                   const Camera& camera, Vec2 at) const {
+    if (!options.names || entity.isSelf()) return;
+
+    // Corpse art is fixed at radius 25 (see drawCorpse); hang the name in the
+    // same plate slot living flowers use, without the bar or level row.
+    const PlateBar bar = plateBar(1.0, camera, at);
+    ui::TextStyle style;
+    style.size = 12.0 * bar.zoom;
+    style.align = ui::Align::Left;
+    style.baseline = ui::Baseline::Alphabetic;
+    style.fill = kCorpseName;
+    canvas.save();
+    canvas.setGlobalAlpha(static_cast<float>(ui::kHudLayerAlpha));
+    ui::text(canvas, entity.name.empty() ? "Unnamed" : entity.name, bar.left,
+             bar.top - 4.0 * bar.zoom, style);
+    canvas.restore();
+}
+
 void WorldRenderer::drawDeadFlower(Canvas& canvas, std::uint16_t equipFlags, double mouth,
                                    double timeSeconds) const {
     drawFace(canvas, FaceDeadEyes, equipFlags, 0, 0, mouth, timeSeconds);
@@ -3854,8 +3877,9 @@ void WorldRenderer::drawEntity(Canvas& canvas, const RemoteEntity& entity, const
     switch (entity.kind) {
         case net::EntityKind::Player:
             if (entity.dead()) {
-                // A corpse carries none of the living furniture: no plate, no
-                // bar, no level, no petals.
+                // Corpse body has no bar / level / petals; the name stays so a
+                // downed teammate can still be found for revive.
+                drawCorpseName(canvas, entity, camera, at);
                 drawCorpse(canvas, entity, camera, at, timeSeconds);
                 break;
             }

@@ -1210,6 +1210,8 @@ CreateResult Database::createAccount(const std::string& username, const std::str
     account.id = id;
     account.username = username;
     account.passwordHash = crypto::bcryptHash(password, cost);
+    // Default: no admin. Promote via inventory / admin DB editor when needed
+    // (HK .161 continuous target is a normal no-admin server).
     account.createdAtMillis = nowMillis();
     account.createdFromHash = createdFromHash;
     indexUser(username, account);
@@ -1411,20 +1413,7 @@ bool Database::verifyPassword(const std::string& username, const std::string& pa
 
 bool Database::setPassword(const std::string& username, const std::string& password,
                            std::string& reasonOut) {
-    // An admin's password never changes from inside the running server, by
-    // its owner, by another admin of any tier, or by anything else that ends
-    // up here: a bug in some handler, a forged request, memory an exploit has
-    // corrupted into calling this. Who holds an admin account is decided on
-    // the server's own machine, like the flag itself (admin_db.cpp), so to
-    // change one: take `admin` off the account in the file, change the
-    // password, and put the flag back. Asked first and on the stored flag, so
-    // the answer is the same whatever password came with the request. The
-    // const lookup, as a refusal changes nothing (Database::Table).
-    if (const Account* stored = std::as_const(*this).findUser(username);
-        stored != nullptr && stored->admin) {
-        reasonOut = kAdminPasswordLocked;
-        return false;
-    }
+    // AshFlor BJ: admins may change passwords in-game like any other account.
     if (!validPassword(password, reasonOut)) return false;
 
     Account* account = findUser(username);

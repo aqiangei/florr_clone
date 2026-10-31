@@ -653,9 +653,15 @@ bool InventoryPanel::render(MenuContext& ctx) {
     // The browser rejects the header strip and then tests every laid-out cell,
     // including one the cull below will not paint, so the hit test is its own
     // pass rather than a side effect of drawing.
+    //
+    // Not while a finger is dragging the grid (gallery's rule): the cell under
+    // it rides with the scroll, and a tip that followed would be noise. A TAP
+    // still hits -- on a phone that is how petal stats are read at all.
     int hovered = -1;
     Rect hoveredRect{};
-    if (panel.contains(mouse) && mouse.y >= view.y) {
+    const bool touchPointer = ctx.window.pointerIsTouch();
+    const bool touchScrolling = ctx.window.touchScrolling();
+    if (panel.contains(mouse) && mouse.y >= view.y && !(touchPointer && touchScrolling)) {
         for (std::size_t i = 0; i < grid.cells.size(); ++i) {
             const Cell& cell = grid.cells[i];
             const Rect rect{originX + cell.rect.x, originY + cell.rect.y, cell.rect.w,
@@ -735,19 +741,18 @@ bool InventoryPanel::render(MenuContext& ctx) {
     scrollThumb(canvas, panel, view.y, visibleH, grid.contentHeight, scroll_.offset);
 
     // --- tooltip -----------------------------------------------------------
-    // Anchored to the CELL rather than the cursor, and only after the dwell.
-    // A press cancels it: what follows is a drag, and a box under the dragged
-    // petal is the one thing in the way. `mousePressed` as well as `mouseDown`,
-    // because a quick click -- and every tap on a list -- is pressed and
-    // released on one frame and is never seen held.
-    //
-    // A finger never dwells at all. Its pointer only rests where it last
-    // lifted, which after a scroll is on whatever petal happened to slide
-    // under it; the dwell would put that petal's box up after every drag.
+    // Anchored to the CELL rather than the cursor. Mouse: after the dwell, and
+    // a press cancels it (drag starts next). Touch: gallery-style -- show
+    // while the finger rests on a cell and is not pressing, dragging, or
+    // scrolling. Press / drag / click-to-equip are unchanged; the tip is only
+    // painted when those are idle.
     const bool pointerDown = ctx.window.mouseDown(MouseButton::Left) ||
-                             ctx.window.mousePressed(MouseButton::Left) || ctx.drag.active() ||
-                             ctx.window.pointerIsTouch();
-    if (tooltipDelay.update(hovered, ctx.timeSeconds, pointerDown) && hovered >= 0) {
+                             ctx.window.mousePressed(MouseButton::Left) || ctx.drag.active();
+    const bool showTooltip =
+        hovered >= 0 &&
+        (touchPointer ? (!pointerDown && !touchScrolling)
+                      : tooltipDelay.update(hovered, ctx.timeSeconds, pointerDown));
+    if (showTooltip) {
         const Cell& cell = grid.cells[static_cast<std::size_t>(hovered)];
         // The reload the bar would actually run, as the slot wedge times it.
         const double reloadScale =
@@ -755,7 +760,7 @@ bool InventoryPanel::render(MenuContext& ctx) {
             (1.0 - barReloadCut(content(), [&](int i) { return profile.equipped(content(), i); }));
         const std::vector<TooltipLine> lines =
             petalTooltipLines(cell.petalIndex, cell.rarity, profile.skills, reloadScale);
-        const bool alt = ctx.window.altHeld();
+        const bool alt = ctx.altMode;
         const Vec2 size = measureTooltip(lines, 0.0, 0.0, alt);
         const Vec2 at = tooltipAnchor(hoveredRect, size, canvas.width(), canvas.height());
         paintTooltip(canvas, at.x, at.y, lines, 0.0, 0.0, alt);

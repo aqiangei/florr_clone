@@ -639,6 +639,20 @@ TEST(bounty_credits_accumulate_per_player) {
     CHECK_NEAR(b.contributors[1].damage, 5.0, 1e-9);
 }
 
+TEST(bounty_credits_merge_by_connection_across_bodies) {
+    // Respawn / title rejoin rebuilds the flower; the connection is what must
+    // keep the ledger share, same as LootClaim.
+    Bounty b;
+    const Entity first = makeEntity(1, 0), respawned = makeEntity(3, 0);
+    constexpr net::ConnectionId kConn = 42;
+    b.credit(first, 10.0, kConn);
+    b.credit(respawned, 7.0, kConn);
+    CHECK_EQ(b.contributors.size(), std::size_t(1));
+    CHECK_NEAR(b.contributors[0].damage, 17.0, 1e-9);
+    CHECK(b.contributors[0].player == respawned);
+    CHECK_EQ(b.contributors[0].owner, kConn);
+}
+
 TEST(components_can_all_be_attached_to_one_world) {
     // Registering every component type and exercising an archetype move over
     // the non-trivial ones catches a missing FLIX_COMPONENT or a component that

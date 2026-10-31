@@ -162,11 +162,15 @@ inline constexpr int kLoadoutTrashSlot = kLoadoutBarSlots;
 /// The link the Discord button opens.
 inline constexpr const char* kDiscordInvite = "https://discord.gg/mDQRVWeEq5";
 
-/// Slots in the icon strip: thirteen across the top-left corner, three down the
+/// AshFlor QQ group (same as ashflor title-screen badge).
+inline constexpr const char* kAshflorQqGroupId = "227990150";
+inline constexpr const char* kAshflorQqInvite = "https://qm.qq.com/q/E0OG9CLIg";
+
+/// Slots in the icon strip: across the top-left corner, three down the
 /// bottom-left one. Not every one is shown at once -- see drawIconStrip -- and
-/// two of the top row open no panel (Discord is a link and exit leaves the
-/// game), so this is not `kMenuCount`.
-inline constexpr int kStripSlotCount = 16;
+/// three of the top row open no panel (Discord / QQ are links and exit leaves
+/// the game), so this is not `kMenuCount`.
+inline constexpr int kStripSlotCount = 17;
 
 /// The range ClientSettings::zoom is held to, and how far one press of a zoom
 /// key moves it. The step is the browser's own ZOOM_STEP; the range is this
@@ -431,6 +435,8 @@ struct MenuContext {
     /// button, and the asset browser's way back. Opening a menu is the menu
     /// system's business, so the panel only names the one it wants.
     MenuId openMenu = MenuId::None;
+    /// App ALT latch: tooltips show exact figures while on.
+    bool altMode = false;
 
     Vec2 mouse() const { return {window.mouseX(), window.mouseY()}; }
     bool over(Rect r) const { return r.contains(mouse()); }
@@ -1508,7 +1514,7 @@ public:
     bool handleKeys(Window&);
 
     /// True while the client is in a game, which is the only time the exit
-    /// button is offered -- and the only time the changelog and Discord
+    /// button is offered -- and the only time the changelog, Discord, and QQ
     /// buttons are not.
     ///
     /// The screen owns the loadout bar's slide: the browser builds a fresh
@@ -1522,6 +1528,9 @@ public:
         // screen would be a card with nothing on screen that opened it.
         if (inGame_ && open_ == MenuId::Changelog) close();
     }
+    /// App's ALT latch (exact tooltip numbers); default off until toggled.
+    void setAltMode(bool on) { altMode_ = on; }
+    bool altMode() const { return altMode_; }
     /// Set when the exit button was clicked. The app reads and clears it --
     /// leaving a game is the app's business, not a menu's.
     bool takeExitRequest() {
@@ -1651,9 +1660,9 @@ private:
     int opsPanel_ = 0;
 
     /// One slot of the icon strip. The strip is not a projection of MenuId:
-    /// two of its buttons open no panel at all, and the order on screen is the
-    /// browser's, not the enum's.
-    enum class StripAction : std::uint8_t { OpenMenu, Discord, Exit };
+    /// three of its buttons open no panel at all, and the order on screen is
+    /// the browser's, not the enum's.
+    enum class StripAction : std::uint8_t { OpenMenu, Discord, Qq, Exit };
     struct StripSlot {
         MenuId menu;
         StripAction action;
@@ -1741,6 +1750,7 @@ private:
     ClientSettings settings_;
     DragState drag_;
     bool wantsText_ = false;
+    bool altMode_ = false;
 
     bool inGame_ = false;
     bool exitRequested_ = false;

@@ -356,7 +356,8 @@ void App::updatePlaying(double dt) {
     // The wheel zooms the camera unless a panel -- or the tutorial box, which
     // is a DOM element and eats the event before the canvas -- is over it, and
     // unless the transcript took it to read back through itself.
-    if (!scrollChat() && !menus_.capturesMouse({window_.mouseX(), window_.mouseY()}) &&
+    if (!scrollChat() && !scrollOnlineRoster() &&
+        !menus_.capturesMouse({window_.mouseX(), window_.mouseY()}) &&
         !tutorial_.capturesMouse({window_.mouseX(), window_.mouseY()})) {
         menus_.settings().zoom =
             clamp(menus_.settings().zoom + window_.wheelDelta() * 0.05, kMinZoom, kMaxZoom);

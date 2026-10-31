@@ -1,5 +1,6 @@
 #include "server/systems/spawning.h"
 
+#include "server/loot_eligibility.h"
 #include "server/systems/movement.h"
 
 #include <algorithm>
@@ -125,15 +126,19 @@ Entity freshestAttacker(World& world, const Bounty* bounty, Realm realm,
     for (const Bounty::Share& share : bounty->contributors) {
         double before = 0.0;
         for (const Bounty::Share& old : seen) {
-            if (old.player == share.player) {
+            // Match by connection when known -- body changes on respawn.
+            const bool same = share.owner != 0 ? old.owner == share.owner
+                                               : old.player == share.player;
+            if (same) {
                 before = old.damage;
                 break;
             }
         }
         const double growth = share.damage - before;
         if (!(growth > bestGrowth)) continue;
-        if (!attackerUsable(world, share.player, realm)) continue;
-        best = share.player;
+        const Entity body = liveContributorBody(world, share);
+        if (body == NULL_ENTITY || !attackerUsable(world, body, realm)) continue;
+        best = body;
         bestGrowth = growth;
     }
     seen.assign(bounty->contributors.begin(), bounty->contributors.end());

@@ -298,7 +298,12 @@ void creditSwing(World& world, Entity victim, Entity source, double amount) {
         }
     }
     if (credited == NULL_ENTITY) return;
-    bounty->credit(credited, amount);
+    // Connection keys the ledger across death / title rejoin (Bounty::Share).
+    const net::ConnectionId owner =
+        world.tryGet<PlayerAccount>(credited) != nullptr
+            ? world.get<PlayerAccount>(credited).connection
+            : 0;
+    bounty->credit(credited, amount, owner);
 
     // A swing inside a dungeon is a swing on the nest outside it, by the rule
     // an ambush nest's brood follows below: the nest cannot be hit, and its
@@ -313,7 +318,7 @@ void creditSwing(World& world, Entity victim, Entity source, double amount) {
             !(entrance->broodHealth > 0.0)) {
             return;
         }
-        nestBounty->credit(credited, amount * nestHealth->max / entrance->broodHealth);
+        nestBounty->credit(credited, amount * nestHealth->max / entrance->broodHealth, owner);
         return;
     }
 
@@ -336,7 +341,7 @@ void creditSwing(World& world, Entity victim, Entity source, double amount) {
         !(ambush->broodHealth > 0.0)) {
         return;
     }
-    nestBounty->credit(credited, amount * nestHealth->max / ambush->broodHealth);
+    nestBounty->credit(credited, amount * nestHealth->max / ambush->broodHealth, owner);
 }
 
 /// Which segment of a shared-health chain holds the pool: the one at the FRONT
@@ -1194,7 +1199,11 @@ void CombatSystem::awardBounty(World& world, Entity victim) {
     // included.
     std::vector<Bounty::Share> shares;
     for (const Bounty::Share& share : bounty->contributors) {
-        if (share.damage > 0.0 && world.has<PlayerTag>(share.player)) shares.push_back(share);
+        if (share.damage <= 0.0) continue;
+        // Refresh the body so a player who died and rejoined still ranks on
+        // the damage they already dealt (connection-keyed ledger).
+        const Bounty::Share live = refreshedShare(world, share);
+        if (world.has<PlayerTag>(live.player)) shares.push_back(live);
     }
     std::stable_sort(shares.begin(), shares.end(),
                      [](const Bounty::Share& a, const Bounty::Share& b) {
