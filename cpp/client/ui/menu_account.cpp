@@ -538,7 +538,7 @@ bool AccountPanel::render(MenuContext& ctx) {
     panelCard(canvas, panel, kAccountSkin);
     const double contentX = panel.x + kPad;
     const double contentW = panel.w - kPad * 2;
-    text(canvas, "Account", contentX, panel.y + kPad + kHeaderHeight * 0.5,
+    text(canvas, menuTitle(MenuId::Account), contentX, panel.y + kPad + kHeaderHeight * 0.5,
          bodyStyle(20.0, kPaper));
 
     const bool inPanel = panel.contains(mouse);
@@ -576,68 +576,77 @@ bool AccountPanel::render(MenuContext& ctx) {
         p.note("Not connected to the server.", kPaper);
     } else {
         // --- who --------------------------------------------------------------
-        text(canvas, "Signed in as", contentX, p.cy + 8.0, bodyStyle(13.0, kNoteFill));
+        text(canvas, tr(Msg::SignedInAs), contentX, p.cy + 8.0, bodyStyle(13.0, kNoteFill));
         TextStyle name = bodyStyle(18.0, kPaper);
-        const double nameX = contentX + measure("Signed in as ", 13.0);
+        const double nameX = contentX + measure(std::string(tr(Msg::SignedInAs)) + " ", 13.0);
         text(canvas, profile.username, nameX, p.cy + 8.0, name);
         if (profile.guest) {
-            text(canvas, "(guest)", nameX + measure(profile.username + " ", 18.0), p.cy + 8.0,
+            text(canvas, language() == Language::Zh ? "（游客）" : "(guest)",
+                 nameX + measure(profile.username + " ", 18.0), p.cy + 8.0,
                  bodyStyle(13.0, kGuestBadge));
         }
         p.cy += 30.0;
 
         // --- username -----------------------------------------------------------
-        p.heading("Username");
+        p.heading(trEnZh("Username", "用户名"));
         if (profile.guest || admin) {
             if (profile.guest) {
-                p.note("A guest account can choose its username once. It cannot be changed later.");
+                p.note(trEnZh(
+                    "A guest account can choose its username once. It cannot be changed later.",
+                    "游客账户只能设置一次用户名，之后无法更改。"));
             } else {
-                p.note("Admins can change their username.");
+                p.note(trEnZh("Admins can change their username.", "管理员可以更改用户名。"));
             }
-            p.field(kUsername, "New username");
+            p.field(kUsername, trEnZh("New username", "新用户名"));
             p.answer(st.username);
             const bool armed = armedNow(st, kSetUsername, ctx.timeSeconds);
-            if (p.button(armed ? "Are you sure?" : "Set Username",
+            if (p.button(armed ? tr(Msg::AreYouSure) : trEnZh("Set Username", "设置用户名"),
                          armed ? kDangerFill : kActionFill, kSetUsername, st.username.pending)) {
                 submitUsername(ctx, st);
             }
         } else {
             // Said rather than hidden, so a player looking for the rename
             // finds out why there is none.
-            p.note("Your username is set and cannot be changed.");
+            p.note(trEnZh("Your username is set and cannot be changed.",
+                          "用户名已设置，无法更改。"));
             p.answer(st.username);
         }
         p.cy += kSectionGap;
 
         // --- password -----------------------------------------------------------
-        p.heading(profile.hasPassword ? "Change Password" : "Set Password");
+        p.heading(profile.hasPassword ? trEnZh("Change Password", "修改密码")
+                                      : trEnZh("Set Password", "设置密码"));
         if (!profile.hasPassword) {
-            p.note("This account has no password yet. Set one to log in from anywhere.",
+            p.note(trEnZh("This account has no password yet. Set one to log in from anywhere.",
+                          "此账户尚未设置密码。设置后可在任何地方登录。"),
                    kGuestBadge);
         }
-        if (profile.hasPassword) p.field(kCurrentPassword, "Current Password");
-        p.field(kNewPassword, "New Password");
-        p.field(kConfirmPassword, "Confirm New Password");
+        if (profile.hasPassword) p.field(kCurrentPassword, trEnZh("Current Password", "当前密码"));
+        p.field(kNewPassword, trEnZh("New Password", "新密码"));
+        p.field(kConfirmPassword, trEnZh("Confirm New Password", "确认新密码"));
         // Above the button, as on the settings card: an answer below it could
         // sit past the fold of a card that scrolls.
         p.answer(st.password);
-        if (p.button(profile.hasPassword ? "Change Password" : "Set Password", kActionFill,
-                     kChangePassword, st.password.pending)) {
+        if (p.button(profile.hasPassword ? trEnZh("Change Password", "修改密码")
+                                         : trEnZh("Set Password", "设置密码"),
+                     kActionFill, kChangePassword, st.password.pending)) {
             submitPassword(ctx, st);
         }
         p.cy += kSectionGap;
 
         // --- another account ------------------------------------------------------
-        p.heading("Log In to Another Account");
+        p.heading(trEnZh("Log In to Another Account", "登录其他账户"));
         if (!profile.hasPassword) {
-            p.note("Set a password first, or this account is lost when you switch.", kGuestBadge);
+            p.note(trEnZh("Set a password first, or this account is lost when you switch.",
+                          "请先设置密码，否则切换账户后将无法找回。"),
+                   kGuestBadge);
         }
-        p.field(kLoginName, "Username");
-        p.field(kLoginPassword, "Password");
+        p.field(kLoginName, trEnZh("Username", "用户名"));
+        p.field(kLoginPassword, trEnZh("Password", "密码"));
         p.answer(st.login);
         const bool loginArmed = armedNow(st, kLogIn, ctx.timeSeconds);
-        if (p.button(loginArmed ? "Are you sure?" : "Log In", loginArmed ? kDangerFill : kActionFill,
-                     kLogIn, st.login.pending)) {
+        if (p.button(loginArmed ? tr(Msg::AreYouSure) : trEnZh("Log In", "登录"),
+                     loginArmed ? kDangerFill : kActionFill, kLogIn, st.login.pending)) {
             submitLogin(ctx, st);
         }
         p.cy += kSectionGap;
@@ -647,12 +656,16 @@ bool AccountPanel::render(MenuContext& ctx) {
         // the stored one and going back to the login form. An account with no
         // password asks first: logging out of it is losing it.
         const bool logoutArmed = armedNow(st, kLogOut, ctx.timeSeconds);
-        if (p.button(logoutArmed ? "Are you sure?" : "Log Out", kDangerFill, kLogOut, false) &&
+        if (p.button(logoutArmed ? tr(Msg::AreYouSure) : tr(Msg::LogOut), kDangerFill, kLogOut,
+                     false) &&
             confirm(st, kLogOut, !profile.hasPassword, ctx.timeSeconds)) {
             ctx.logoutRequested = true;
             keepOpen = false;
         }
-        if (logoutArmed) p.note("This account has no password. Logging out loses it.", kGuestBadge);
+        if (logoutArmed)
+            p.note(trEnZh("This account has no password. Logging out loses it.",
+                          "此账户没有密码，退出登录后将无法找回。"),
+                   kGuestBadge);
     }
 
     st.contentHeight = p.cy - contentStart;

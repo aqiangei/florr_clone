@@ -349,4 +349,17 @@ inline int skillPurchaseCost(const SkillSet& skills, SkillId id, int tier) {
     return total;
 }
 
+/// Drops `id` to `newLevel` (-1 = unlearned) and clears every fork child whose
+/// prerequisite is then unmet. Used by hold-to-refund: removing Absorption
+/// below mythic also drops Duplicator, and so on.
+inline void skillRefundTo(SkillSet& skills, SkillId id, int newLevel) {
+    if (newLevel < -1) newLevel = -1;
+    if (newLevel >= skillTierCount(id)) newLevel = skillTierCount(id) - 1;
+    skills.set(id, newLevel);
+    for (const SkillFork& fork : kSkillForks) {
+        if (fork.parent != id) continue;
+        if (!skills.prerequisiteMet(fork.child)) skills.set(fork.child, -1);
+    }
+}
+
 } // namespace flix

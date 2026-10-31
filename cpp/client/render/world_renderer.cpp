@@ -13,6 +13,7 @@
 #include "client/ease.h"
 #include "client/render/art_cache.h"
 #include "client/render/skin_render.h"
+#include "client/ui/content_i18n.h"
 #include "client/ui/draw.h"
 #include "client/ui/item_tile.h"
 #include "client/ui/menu_widgets.h"
@@ -475,7 +476,7 @@ constexpr double kMobTierDrop = 0.7 * kMobNameSize;
 constexpr double kMobDpsDrop = kMobTierDrop + 1.4 * kMobTierSize;
 
 /// What a summon's plate says it is, at the left of the tier row.
-constexpr const char* kPetLabel = "Summon";
+// Summon caption uses tipSummon() so it follows the UI language.
 
 
 /// Flower-shaped mobs. Neither colour is read off mob stats: the loader
@@ -2509,8 +2510,9 @@ void WorldRenderer::drawPlayerPlate(Canvas& canvas, const RemoteEntity& entity,
         // The browser build never sets a baseline in the world pass, so the
         // pen sits on the alphabetic baseline.
         style.baseline = ui::Baseline::Alphabetic;
-        ui::text(canvas, entity.name.empty() ? "Unnamed" : entity.name, left,
-                 barY - 4.0 * zoom, style);
+        if (!entity.name.empty()) {
+            ui::text(canvas, entity.name, left, barY - 4.0 * zoom, style);
+        }
     }
 
     if (options.healthBars) {
@@ -2665,8 +2667,8 @@ void WorldRenderer::drawCorpseName(Canvas& canvas, const RemoteEntity& entity,
     style.fill = kCorpseName;
     canvas.save();
     canvas.setGlobalAlpha(static_cast<float>(ui::kHudLayerAlpha));
-    ui::text(canvas, entity.name.empty() ? "Unnamed" : entity.name, bar.left,
-             bar.top - 4.0 * bar.zoom, style);
+    if (entity.name.empty()) return;
+    ui::text(canvas, entity.name, bar.left, bar.top - 4.0 * bar.zoom, style);
     canvas.restore();
 }
 
@@ -3726,7 +3728,8 @@ void WorldRenderer::drawMobLabel(Canvas& canvas, const Camera& camera, const Mob
         // Above the bar, from the left end of its track -- or, when the name is
         // longer than the whole track, centred over it.
         static const std::string kUnknownMob = "?";
-        const std::string& name = config ? config->name : kUnknownMob;
+        const std::string name =
+            config ? std::string(ui::mobNameTr(config->id, config->name.c_str())) : kUnknownMob;
         const double nameBox = boxWidth(name, kMobNameSize);
         label(name, kMobNameSize, ui::kPaper, nameBox >= halfSpan * 2.0 ? -nameBox * 0.5 : -halfSpan,
               lineY - kMobNameRaise);
@@ -3745,14 +3748,14 @@ void WorldRenderer::drawMobLabel(Canvas& canvas, const Camera& camera, const Mob
     const double rowY = lineY + kMobTierDrop;
     double tierFloor = -1e300;
     if (labelled && mob.pet && (options.healthBars || options.names)) {
-        const std::string summon = kPetLabel;
+        const std::string summon = ui::tipSummon();
         const double box = boxWidth(summon, kMobTierSize);
         const double left = std::min(-halfSpan, -1.0 - box);
         label(summon, kMobTierSize, kPetLabelColor, left, rowY);
         tierFloor = left + box + 1.0;
     }
     if (labelled && options.names) {
-        const std::string tier = rarityLabel(mob.rarity);
+        const std::string tier = ui::rarityTr(mob.rarity);
         const double box = boxWidth(tier, kMobTierSize);
         label(tier, kMobTierSize, rarityColor(mob.rarity), std::max(tierFloor, halfSpan - box),
               rowY);

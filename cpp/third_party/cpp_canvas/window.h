@@ -325,6 +325,10 @@ public:
     /// than a touch -- Escape, a send, a panel closing under it.
     void dismissSoftKeyboard();
 
+    /// Focuses the hidden <input> without wiping composition -- for chat / a
+    /// field opened by Enter rather than a tap. No-op natively.
+    void ensureSoftKeyboard();
+
     /// UTF-8 typed this frame, for text fields. Distinct from keyPressed:
     /// this is what the keyboard layout produced, not which key was struck.
     const std::string& typedText() const;

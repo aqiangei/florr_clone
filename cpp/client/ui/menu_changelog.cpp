@@ -735,7 +735,7 @@ bool ChangelogPanel::render(MenuContext& ctx) {
     heading.size = 20.0;
     heading.fill = kPaper;
     heading.baseline = Baseline::Top;
-    text(canvas, "Changelog", panel.x + kPadding, panel.y + kPadding, heading);
+    text(canvas, menuTitle(MenuId::Changelog), panel.x + kPadding, panel.y + kPadding, heading);
 
     // No hover and no press state, exactly as the reference pill has none.
     const Rect closeRect = closeButtonRect(panel);

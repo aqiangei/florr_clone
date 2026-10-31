@@ -238,7 +238,8 @@ private:
     /// choice and for any id no staged map defines.
     std::string pickerTabOf(const std::string& choiceId) const;
     /// The title screen's chat line, bottom-left, under the icon column.
-    static Rect titleChatBox(int viewWidth, int viewHeight);
+    /// Instance (not static): with touch controls up it lifts clear of the stick.
+    Rect titleChatBox(int viewWidth, int viewHeight);
     void drawTitleChat(Canvas&, double time);
     /// The daily-login card, top-right. Painted last, over the panels, exactly
     /// as the browser build's own always-on-top widget is.
@@ -264,6 +265,10 @@ private:
     /// Steps and draws the petals drifting over that texture.
     void drawTitlePetals(Canvas&, double time);
     void drawHud(Canvas&, double time);
+    /// AshFlor 移动辅助: thin aim ray from the flower toward the cursor.
+    /// Over the world, under the HUD. Off when the setting is off or touch
+    /// controls own the pointer.
+    void drawMovementHelper(Canvas&);
     /// The edges of the screen going dark as the flower runs out of health.
     /// Over the world and under the HUD, like the death wash.
     void drawLowHealthVignette(Canvas&);

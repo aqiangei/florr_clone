@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "client/ui/content_i18n.h"
 #include "client/ui/item_tile.h"
 #include "client/ui/menu_theme.h"
 #include "client/ui/menus.h"
@@ -583,7 +584,7 @@ bool GalleryPanel::render(MenuContext& ctx) {
 
     TextStyle title = galleryStyle(24.0, kPaper);
     title.align = Align::Centre;
-    text(canvas, "Mob Gallery", panel.x + panel.w * 0.5, panel.y + kPad + kTitleHeight * 0.5,
+    text(canvas, menuTitle(MenuId::Gallery), panel.x + panel.w * 0.5, panel.y + kPad + kTitleHeight * 0.5,
          title);
 
     const Rect closeRect = closeButtonRect(panel);
@@ -759,10 +760,10 @@ bool GalleryPanel::render(MenuContext& ctx) {
         const MobStats stats = content().mobStats(cell.mobIndex, cell.rarity);
 
         std::vector<TooltipLine> lines;
-        lines.emplace_back(config.name, 20.0, kPaper, 0.0);
-        lines.emplace_back(rarityLabel(cell.rarity), 14.0, rarityColor(cell.rarity), 0.0);
+        lines.emplace_back(mobNameTr(config.id, config.name.c_str()), 20.0, kPaper, 0.0);
+        lines.emplace_back(rarityTr(cell.rarity), 14.0, rarityColor(cell.rarity), 0.0);
         if (!config.description.empty()) {
-            TooltipLine body{config.description, 12.0, kPaper, 10.0};
+            TooltipLine body{mobDescTr(config.id, config.description.c_str()), 12.0, kPaper, 10.0};
             body.maxWidth = 280.0;
             lines.push_back(std::move(body));
         }
@@ -774,11 +775,12 @@ bool GalleryPanel::render(MenuContext& ctx) {
             line.labelColor = labelColor;
             lines.push_back(std::move(line));
         };
-        stat("HP: " + abbreviateNumber(stats.health), statGap, kStatHealth);
-        stat("Damage: " + abbreviateNumber(stats.damage), 0.0, kStatDamage);
+        stat(std::string(tipHp()) + abbreviateNumber(stats.health), statGap, kStatHealth);
+        stat(std::string(tipDamage()) + abbreviateNumber(stats.damage), 0.0, kStatDamage);
         // Skipped when it is nothing, because a zero here reads as a mob with
         // a weakness rather than one whose author simply wrote no armour.
-        if (stats.armor != 0.0) stat("Armor: " + abbreviateNumber(stats.armor), 0.0, kStatArmor);
+        if (stats.armor != 0.0)
+            stat(std::string(tipArmor()) + abbreviateNumber(stats.armor), 0.0, kStatArmor);
         // Only the evasive few carry one, and it is the reason the fly takes
         // ten swings to kill -- the card is the one place that can say so.
         if (stats.evasion > 0.0) {
@@ -836,7 +838,7 @@ bool GalleryPanel::render(MenuContext& ctx) {
             double cy = box.y + kDropsGapY;
             TextStyle heading = galleryStyle(12.0, 0xFFD700u);
             heading.baseline = Baseline::Top;
-            text(canvas, "Drops:", box.x, cy, heading);
+            text(canvas, tr(Msg::Drops), box.x, cy, heading);
             cy += kDropsHeaderH;
 
             const double tableX = tx + (size.x - tableWidth) * 0.5;
@@ -845,7 +847,7 @@ bool GalleryPanel::render(MenuContext& ctx) {
             for (std::size_t i = 0; i < columns.size(); ++i) {
                 const Rarity rarity = clampRarity(columns[i]);
                 header.fill = rarityColor(rarity);
-                text(canvas, rarityLabel(rarity),
+                text(canvas, rarityTr(rarity),
                      tableX + static_cast<double>(i) * kDropCellW + kDropCellW * 0.5,
                      cy + kColHeaderH * 0.5, header);
             }

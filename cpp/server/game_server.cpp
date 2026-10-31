@@ -1391,6 +1391,7 @@ void GameServer::onMessage(net::Connection& connection, ByteReader& reader) {
         case net::ClientMessage::Absorb:
         case net::ClientMessage::BuyPetal:
         case net::ClientMessage::UpgradeSkill:
+        case net::ClientMessage::DowngradeSkill:
         case net::ClientMessage::ResetSkills:
         case net::ClientMessage::RedeemCode:
             if (!session->authenticated() || !spend(session->inventoryAllowance)) return;
@@ -1433,6 +1434,9 @@ void GameServer::onMessage(net::Connection& connection, ByteReader& reader) {
         case net::ClientMessage::Respawn:       handleRespawn(*session); break;
         case net::ClientMessage::Ping:          handlePing(connection, reader); break;
         case net::ClientMessage::UpgradeSkill:  handleUpgradeSkill(*session, connection, reader); break;
+        case net::ClientMessage::DowngradeSkill:
+            handleDowngradeSkill(*session, connection, reader);
+            break;
         case net::ClientMessage::ResetSkills:   handleResetSkills(*session, connection); break;
         case net::ClientMessage::BuyPetal:      handleBuyPetal(*session, connection, reader); break;
         case net::ClientMessage::RedeemCode:    handleRedeemCode(*session, connection, reader); break;
@@ -3783,6 +3787,62 @@ void GameServer::handleUpgradeSkill(Session& session, net::Connection& connectio
     sendProfile(session, connection);
 }
 
+void GameServer::handleDowngradeSkill(Session& session, net::Connection& connection,
+                                      ByteReader& reader) {
+    const std::uint8_t rawSkill = reader.u8();
+    const int tier = reader.u8();
+    if (!reader.ok() || !session.authenticated()) return;
+    if (rawSkill >= kSkillCount) return;
+
+    const SkillId id = static_cast<SkillId>(rawSkill);
+    PlayerRecord& record = database_.progress(session.userId);
+    if (session.playing() && session.realm == Realm::Arena) {
+        sendNotice(connection, net::NoticeSeverity::Warning, "Talents are disabled in the arena.");
+        return;
+    }
+    const bool maze = session.playing() && session.realm == Realm::Maze;
+    SkillSet& skills = maze ? record.mazeSkills : record.skills;
+
+    // Must own this node: hold-to-refund only on a lit tile.
+    if (tier < 0 || tier >= skillTierCount(id) || skills.level(id) < tier) {
+        sendNotice(connection, net::NoticeSeverity::Warning, "That talent is not unlocked.");
+        return;
+    }
+
+    // Drop this tier and everything above on the branch; fork children whose
+    // parent no longer reaches their requirement go with it.
+    skillRefundTo(skills, id, tier - 1);
+
+    // Prestige leaving the tree while standing in a prestige biome: same exit
+    // as a full reset -- the biomes require the talent.
+    if (!maze && id == SkillId::Prestige && !skills.prestigeUnlocked()) {
+        session.prestige = false;
+        bool inPrestige = false;
+        if (session.playing()) {
+            for (const Entity body : bodiesOf(session)) {
+                if (body == NULL_ENTITY || !world_.isAlive(body)) continue;
+                const Transform* at = world_.tryGet<Transform>(body);
+                if (at != nullptr && worldMaps_.isPrestige(at->realm)) inPrestige = true;
+            }
+        }
+        if (inPrestige) {
+            leaveWorld(session);
+            ByteWriter w;
+            w.u8(static_cast<std::uint8_t>(net::ServerMessage::LeftWorld));
+            connection.send(w);
+            database_.markDirty();
+            sendProfile(session, connection);
+            sendNotice(connection, net::NoticeSeverity::Info,
+                       "Prestige refunded. Without it you are back on the title screen.");
+            return;
+        }
+    }
+
+    database_.markDirty();
+    if (session.playing() && world_.isAlive(session.entity)) applyAccountToSession(session);
+    sendProfile(session, connection);
+}
+
 void GameServer::handleResetSkills(Session& session, net::Connection& connection) {
     if (!session.authenticated()) return;
     PlayerRecord& record = database_.progress(session.userId);
@@ -4639,6 +4699,10 @@ void GameServer::serviceOnlineRoster(double nowMillis) {
         std::string guild;
         std::string location;
         std::string sortKey;
+        bool placed = false;
+        std::uint8_t realm = 0;
+        float x = 0.f;
+        float y = 0.f;
     };
     std::vector<Row> rows;
     rows.reserve(sessions_.size());
@@ -4656,6 +4720,16 @@ void GameServer::serviceOnlineRoster(double nowMillis) {
             const int level = levelFromTotalXp(progress->totalXp).level;
             row.level = static_cast<std::uint16_t>(std::clamp(level, 1, 65535));
         }
+        // World position for the whole-map dots: AOI never carries far-away
+        // humans, so the roster is what paints them. Bots are not sessions.
+        if (session.playing() && world_.isAlive(session.entity)) {
+            if (const Transform* t = world_.tryGet<Transform>(session.entity)) {
+                row.placed = true;
+                row.realm = static_cast<std::uint8_t>(t->realm);
+                row.x = static_cast<float>(t->position.x);
+                row.y = static_cast<float>(t->position.y);
+            }
+        }
         rows.push_back(std::move(row));
     }
     std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
@@ -4665,7 +4739,7 @@ void GameServer::serviceOnlineRoster(double nowMillis) {
     if (rows.size() > kMaxRows) rows.resize(kMaxRows);
 
     std::string fingerprint;
-    fingerprint.reserve(rows.size() * 32);
+    fingerprint.reserve(rows.size() * 48);
     for (const Row& row : rows) {
         fingerprint.append(row.name);
         fingerprint.push_back('\n');
@@ -4675,6 +4749,18 @@ void GameServer::serviceOnlineRoster(double nowMillis) {
         fingerprint.push_back('\n');
         fingerprint.append(row.location);
         fingerprint.push_back('\n');
+        // Coarse so a player pacing in place does not force a resend every
+        // interval; ~32u steps still look right on a whole-map corner.
+        if (row.placed) {
+            fingerprint.append(std::to_string(row.realm));
+            fingerprint.push_back(':');
+            fingerprint.append(std::to_string(static_cast<int>(row.x) >> 5));
+            fingerprint.push_back(',');
+            fingerprint.append(std::to_string(static_cast<int>(row.y) >> 5));
+            fingerprint.push_back('\n');
+        } else {
+            fingerprint.append("-\n");
+        }
     }
     if (fingerprint == onlineRosterFingerprint_) return;
     onlineRosterFingerprint_ = std::move(fingerprint);
@@ -4687,6 +4773,12 @@ void GameServer::serviceOnlineRoster(double nowMillis) {
         w.u16(row.level);
         w.str(row.guild);
         w.str(row.location);
+        w.u8(row.placed ? 1 : 0);
+        if (row.placed) {
+            w.u8(row.realm);
+            w.f32(row.x);
+            w.f32(row.y);
+        }
     }
     broadcastToAuthenticated(w);
 }
@@ -5649,9 +5741,8 @@ void GameServer::handleGuildSquadAll(Session& session, net::Connection& connecti
         return;
     }
     Squad* squad = squadOrCreate(session, connection);
-    if (squad == nullptr || !(squad->leader == squadIdOf(session))) {
-        sendNotice(connection, net::NoticeSeverity::Warning,
-                   "Only your squad leader can invite guildmates into the squad.");
+    if (squad == nullptr) {
+        sendNotice(connection, net::NoticeSeverity::Warning, "Failed to create a squad.");
         return;
     }
 
@@ -5675,9 +5766,7 @@ void GameServer::handleGuildSquadAll(Session& session, net::Connection& connecti
         }
         ++invited;
         if (net::Connection* peer = listener_.find(target->connection)) {
-            sendSystem(*peer, "<span style=\"color: #4fc3f7;\">@" + session.username +
-                                  " (guild) invited you to their squad. Use /squad-accept or "
-                                  "/squad-decline.</span>");
+            sendSquadInvite(*peer, session.username, true);
         }
     }
     if (invited == 0) {
@@ -5739,9 +5828,7 @@ void GameServer::guildInviteToSquad(Session& session, net::Connection& connectio
     }
     sendNotice(connection, net::NoticeSeverity::Good, "Squad invite sent to " + target + ".");
     if (net::Connection* peer = listener_.find(peerSession->connection)) {
-        sendSystem(*peer, "<span style=\"color: #4fc3f7;\">@" + session.username +
-                              " (guild) invited you to their squad. Use /squad-accept or "
-                              "/squad-decline.</span>");
+        sendSquadInvite(*peer, session.username, true);
     }
 }
 

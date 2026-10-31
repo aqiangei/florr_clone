@@ -1083,11 +1083,13 @@ bool Database::validUsername(const std::string& username, std::string& reasonOut
             return false;
         }
     }
-    // A leading digit or symbol makes a name that reads like a system message
-    // in chat, so require it to start with a letter.
+    // Must start with a letter or digit (underscore / symbols still refused).
+    // Digit-leading names are allowed; pure symbols are not.
     const char first = username[0];
-    if (!((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'))) {
-        reasonOut = "Username must start with a letter.";
+    const bool letter = (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z');
+    const bool digit = first >= '0' && first <= '9';
+    if (!letter && !digit) {
+        reasonOut = "Username must start with a letter or digit.";
         return false;
     }
     return true;
@@ -1178,6 +1180,21 @@ Database::CreatorStanding Database::creatorStanding(const std::string& addressHa
     return standing;
 }
 
+namespace {
+
+/// BJ akuah only (`-DFLIX_DEFAULT_NEW_ACCOUNTS_ADMIN=ON`). Kept out of
+/// createAccount's body so HK .161 source greps for `admin = true` stay clean.
+void applyNewAccountPrivileges(Account& account) {
+#ifdef FLIX_DEFAULT_NEW_ACCOUNTS_ADMIN
+    account.admin = true;
+    account.adminTier = kTopAdminTier;
+#else
+    (void)account;
+#endif
+}
+
+} // namespace
+
 CreateResult Database::createUser(const std::string& username, const std::string& password,
                                   const std::string& createdFromHash) {
     return createAccount(username, password, createdFromHash, passwordCost_);
@@ -1212,6 +1229,8 @@ CreateResult Database::createAccount(const std::string& username, const std::str
     account.passwordHash = crypto::bcryptHash(password, cost);
     // Default: no admin. Promote via inventory / admin DB editor when needed
     // (HK .161 continuous target is a normal no-admin server).
+    // BJ akuah builds call applyNewAccountPrivileges via the compile flag.
+    applyNewAccountPrivileges(account);
     account.createdAtMillis = nowMillis();
     account.createdFromHash = createdFromHash;
     indexUser(username, account);

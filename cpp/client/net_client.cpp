@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <iterator>
 
+#include "client/ui/chat_i18n.h"
 #include "client/web/reload.h"
 #include "shared/game/absorb.h"
 #include "shared/core/text.h"
@@ -41,6 +42,7 @@ const char* clientMessageName(std::uint8_t id) {
         case net::ClientMessage::Respawn:             return "respawn";
         case net::ClientMessage::Ping:                return "ping";
         case net::ClientMessage::UpgradeSkill:        return "upgradeSkill";
+        case net::ClientMessage::DowngradeSkill:      return "downgradeSkill";
         case net::ClientMessage::ResetSkills:         return "resetSkills";
         case net::ClientMessage::BuyPetal:            return "buyPetal";
         case net::ClientMessage::SetSkin:             return "setSkin";
@@ -121,6 +123,7 @@ const char* serverMessageName(std::uint8_t id) {
         case net::ServerMessage::Teleported:          return "teleported";
         case net::ServerMessage::ProfileDelta:        return "profileDelta";
         case net::ServerMessage::OnlineRoster:        return "onlineRoster";
+        case net::ServerMessage::SquadInviteReceived: return "squadInvite";
     }
     return "unknown";
 }
@@ -315,6 +318,7 @@ void NetClient::forgetAccount() {
     onlineRoster_.clear();
     guild_ = GuildState{};
     guildInvite_ = GuildInvite{};
+    squadInvite_ = SquadInvite{};
     craftOutcome_ = CraftOutcome{};
     oracleOutcome_ = OracleOutcome{};
     oracleReadyAtMillis_ = 0;
@@ -522,6 +526,14 @@ const std::string* NetClient::titanHolder(std::uint16_t petalIndex) const {
 void NetClient::requestUpgradeSkill(SkillId skill, int tier) {
     ByteWriter w;
     beginMessage(w, net::ClientMessage::UpgradeSkill);
+    w.u8(static_cast<std::uint8_t>(skill));
+    w.u8(static_cast<std::uint8_t>(tier));
+    send(w);
+}
+
+void NetClient::requestDowngradeSkill(SkillId skill, int tier) {
+    ByteWriter w;
+    beginMessage(w, net::ClientMessage::DowngradeSkill);
     w.u8(static_cast<std::uint8_t>(skill));
     w.u8(static_cast<std::uint8_t>(tier));
     send(w);
@@ -1168,6 +1180,7 @@ void NetClient::onMessage(net::Connection& connection, ByteReader& reader) {
         case net::ServerMessage::AdminDashboard: handleAdminDashboard(reader); break;
         case net::ServerMessage::LeftWorld:     handleLeftWorld(); break;
         case net::ServerMessage::OnlineRoster:  handleOnlineRoster(reader); break;
+        case net::ServerMessage::SquadInviteReceived: handleSquadInviteReceived(reader); break;
         default:
             // An unknown id means the server is newer than this build. The
             // frame is already fully buffered, so skipping it is safe and
@@ -1618,7 +1631,15 @@ void NetClient::handleOnlineRoster(ByteReader& reader) {
         row.level = reader.u16();
         row.guild = reader.str();
         row.location = reader.str();
+        const std::uint8_t placed = reader.u8();
         if (!reader.ok()) return;
+        if (placed != 0) {
+            row.placed = true;
+            row.realm = reader.u8();
+            row.x = reader.f32();
+            row.y = reader.f32();
+            if (!reader.ok()) return;
+        }
         if (row.level < 1) row.level = 1;
         next.push_back(std::move(row));
     }
@@ -1646,6 +1667,8 @@ void NetClient::handleSquadUpdate(ByteReader& reader) {
     }
     if (!reader.ok()) return;
     squad_ = std::move(next);
+    // Joining answers the outstanding invite the same way a guild update does.
+    if (squad_.inSquad) squadInvite_ = {};
 }
 
 void NetClient::handleGuildUpdate(ByteReader& reader) {
@@ -1682,6 +1705,16 @@ void NetClient::handleGuildInviteReceived(ByteReader& reader) {
     invite.waiting = true;
     invite.justArrived = true;
     guildInvite_ = std::move(invite);
+}
+
+void NetClient::handleSquadInviteReceived(ByteReader& reader) {
+    SquadInvite invite;
+    invite.fromUsername = reader.str();
+    invite.fromGuild = reader.u8() != 0;
+    if (!reader.ok()) return;
+    invite.waiting = true;
+    invite.justArrived = true;
+    squadInvite_ = std::move(invite);
 }
 
 void NetClient::installLocalCollision(Realm realm) {
@@ -1806,6 +1839,12 @@ void NetClient::handleMazeInfo(ByteReader& reader) {
 
 void NetClient::pushChat(net::ChatChannel channel, std::string author, std::string text,
                          std::uint32_t speakerNetId) {
+    // System / squad notices arrive in English; localize at display time so
+    // one broadcast still serves every client language.
+    if (channel == net::ChatChannel::System || channel == net::ChatChannel::Squad ||
+        author.empty() || author == "System") {
+        text = ui::localizeChatText(std::move(text));
+    }
     ChatLine line;
     line.channel = channel;
     line.author = std::move(author);

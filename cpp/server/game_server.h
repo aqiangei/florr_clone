@@ -114,15 +114,14 @@ struct ServerConfig {
     /// (kBotTargetTotalPlayers minus the humans online). Zero is a world with
     /// no bots in it at all.
     ///
-    /// Here for the tests. Bots are spread over every biome a player can join
-    /// (botBiomes()), the overworld a test joins into among them, and each is
-    /// born in the doors and beginner bands a joining player is put down in
-    /// (pickBotSpawn) -- which is what a live server WANTS and what makes
-    /// "these two flowers are the only ones in sight" or "this mob lived long
-    /// enough to fire" impossible to state. `/admin set_bot_count` is the same
-    /// knob at run time; this is the one a harness can set before the first
-    /// tick.
-    int botCount = -1;
+    /// Default 0 (AshFlor / .161): stock servers ship without filler bots;
+    /// pass `--bots -1` or `/admin set_bot_count default` to restore auto fill.
+    /// Here for the tests too. Bots are spread over every biome a player can
+    /// join (botBiomes()), the overworld a test joins into among them, and each
+    /// is born in the doors and beginner bands a joining player is put down in
+    /// (pickBotSpawn). `/admin set_bot_count` is the same knob at run time;
+    /// this is the one a harness can set before the first tick.
+    int botCount = 0;
     /// The `/admin db` key to use as is, instead of the one in the key file
     /// beside the database. Empty means the file. Only the offline page sets
     /// it: its server is a browser tab with no file anybody can open, and a
@@ -389,6 +388,7 @@ private:
     void handleRespawn(Session&);
     void handlePing(net::Connection&, ByteReader&);
     void handleUpgradeSkill(Session&, net::Connection&, ByteReader&);
+    void handleDowngradeSkill(Session&, net::Connection&, ByteReader&);
     void handleResetSkills(Session&, net::Connection&);
     void handleBuyPetal(Session&, net::Connection&, ByteReader&);
     void handleRedeemCode(Session&, net::Connection&, ByteReader&);
@@ -727,6 +727,9 @@ private:
     /// markup as well (shared/game/markup.cpp), so a reply may be either, and
     /// /help and /guild-info are one message joined with `<br/>`.
     void sendSystem(net::Connection&, const std::string& text);
+    /// Squad invite toast + the same system chat line players already see.
+    void sendSquadInvite(net::Connection&, const std::string& fromUsername,
+                         bool fromGuild);
 
     // -- scheduled restart -------------------------------------------------
     //

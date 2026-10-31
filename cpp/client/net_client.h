@@ -193,10 +193,22 @@ struct GuildInvite {
     std::string fromUsername;
     /// The free-text name, for the invite card to head itself with.
     std::string displayName;
-    /// Raised when an invite lands, so the menu system can force the panel
-    /// open once and then clear it. Separate from `waiting`, which stays set
-    /// for as long as the invite is unanswered.
+    /// Raised when an invite lands (top-left toast). Separate from `waiting`,
+    /// which stays set for as long as the invite is unanswered.
     bool justArrived = false;
+    /// Toast closed with ×; invite still pending for the guild panel / chat.
+    bool dismissed = false;
+};
+
+/// A squad invitation waiting on Accept / Decline (chat commands under the hood).
+struct SquadInvite {
+    bool waiting = false;
+    std::string fromUsername;
+    /// True when the invite came via guild invite-to-squad / squad-all.
+    bool fromGuild = false;
+    bool justArrived = false;
+    /// Toast closed with ×; invite still pending for /squad-accept.
+    bool dismissed = false;
 };
 
 /// The outcome of the last craft, for the crafting panel's result animation.
@@ -663,6 +675,8 @@ public:
     /// Buys the NEXT tier of a branch. The server refuses anything else, so
     /// the panel never has to guess whether a jump would be allowed.
     void requestUpgradeSkill(SkillId skill, int tier);
+    /// Hold-to-refund on an owned talent node: drops this tier and above.
+    void requestDowngradeSkill(SkillId skill, int tier);
     void requestResetSkills();
     /// Buys a petal. `offerSlot` is which card of the rotating store was
     /// clicked; the default buys at the full ladder price. Either way the
@@ -925,6 +939,11 @@ public:
         std::uint16_t level = 1;
         std::string guild;
         std::string location;
+        /// True when the flower has a body; coords are then valid for minimap.
+        bool placed = false;
+        std::uint8_t realm = 0;
+        float x = 0.f;
+        float y = 0.f;
     };
     const std::vector<OnlineRosterEntry>& onlineRoster() const { return onlineRoster_; }
 
@@ -933,6 +952,11 @@ public:
     /// the reply, exactly as the reference clears `pendingInvite` on click.
     GuildInvite& guildInvite() { return guildInvite_; }
     const GuildInvite& guildInvite() const { return guildInvite_; }
+
+    SquadInvite& squadInvite() { return squadInvite_; }
+    const SquadInvite& squadInvite() const { return squadInvite_; }
+    /// Clear the pending squad toast after Accept/Decline is sent.
+    void clearSquadInvite() { squadInvite_ = {}; }
 
     /// The last craft result. The panel clears `pending` once it has started
     /// the animation for it.
@@ -1057,6 +1081,7 @@ private:
     void handleSquadUpdate(ByteReader&);
     void handleGuildUpdate(ByteReader&);
     void handleGuildInviteReceived(ByteReader&);
+    void handleSquadInviteReceived(ByteReader&);
     /// `arrivedMillis` is when the pong's bytes reached the page, on
     /// renderClockMillis() -- see onMessage.
     void handlePong(ByteReader&, double arrivedMillis);
@@ -1146,6 +1171,7 @@ private:
     std::vector<OnlineRosterEntry> onlineRoster_;
     GuildState guild_;
     GuildInvite guildInvite_;
+    SquadInvite squadInvite_;
     CraftOutcome craftOutcome_;
     OracleOutcome oracleOutcome_;
     /// When, on this client's steady clock, the oracle wait the last profile

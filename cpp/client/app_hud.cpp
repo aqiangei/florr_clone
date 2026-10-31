@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "client/ease.h"
+#include "client/ui/content_i18n.h"
 #include "client/ui/draw.h"
 #include "client/ui/text.h"
 #include "client/ui/text_input.h"
@@ -589,7 +590,7 @@ double App::drawBossBars(Canvas& canvas, bool altHeld) {
         text(canvas,
              altHeld ? formatNumber(std::round(health), true) + "/" +
                            formatNumber(maxHealth, true)
-                     : std::string(rarityLabel(boss.rarity)),
+                     : std::string(rarityTr(boss.rarity)),
              centreX, barY + kBarHeight + kTierDrop, tier);
     }
 

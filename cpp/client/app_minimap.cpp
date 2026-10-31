@@ -433,23 +433,49 @@ void App::drawMinimap(Canvas& canvas) {
         name.baseline = Baseline::Bottom;
         text(canvas, *label, dx, dy - radius - 2.0, name);
     };
-    // Everyone in the AOI stream: squad pink, others dark; names always on.
+    // AOI stream first (fresh); then OnlineRoster fills in far-away humans the
+    // viewport never carries. Bots only exist in AOI -- they are not sessions.
     const SquadState& squad = net_.squad();
+    const auto squadByName = [&](const std::string& name) {
+        if (!squad.inSquad || name.empty()) return false;
+        for (const auto& m : squad.members) {
+            if (m.name == name || m.account == name) return true;
+        }
+        return false;
+    };
+    std::vector<std::string> painted;
+    painted.reserve(16);
     for (const auto& entry : net_.view().entities()) {
         const RemoteEntity& entity = entry.second;
         if (entity.kind != net::EntityKind::Player || entity.isSelf()) continue;
         const bool squadmate = squad.contains(entry.first);
         const std::string label =
-            entity.name.empty() ? std::string("Flower") : entity.name;
+            entity.name.empty() ? std::string(tr(Msg::Flower)) : entity.name;
         if (squadmate) dot(entity.position, 4.0, 0xFF69B4u, true, &label);
         else dot(entity.position, 4.0, kInk, false, &label);
+        painted.push_back(label);
+    }
+    const std::string selfName =
+        net_.profile().username.empty() ? std::string(tr(Msg::You)) : net_.profile().username;
+    const std::string& selfAccount = net_.profile().username;
+    const std::uint8_t myRealm = static_cast<std::uint8_t>(realm);
+    for (const auto& row : net_.onlineRoster()) {
+        if (!row.placed || row.realm != myRealm) continue;
+        if (row.name == selfName || (!selfAccount.empty() && row.name == selfAccount)) continue;
+        bool already = false;
+        for (const std::string& n : painted) {
+            if (n == row.name) {
+                already = true;
+                break;
+            }
+        }
+        if (already) continue;
+        const Vec2 at{row.x, row.y};
+        if (squadByName(row.name)) dot(at, 4.0, 0xFF69B4u, true, &row.name);
+        else dot(at, 4.0, kInk, false, &row.name);
     }
     // Self last, so the blue dot is never hidden under someone standing on it.
-    {
-        const std::string selfName =
-            net_.profile().username.empty() ? std::string("You") : net_.profile().username;
-        dot(me, 3.0, 0x0000FFu, true, &selfName);
-    }
+    dot(me, 3.0, 0x0000FFu, true, &selfName);
 
     // The camera's own rectangle, inside the clip, with hitboxes on. The
     // reference strokes it from cameraX/cameraY, which are the world-space TOP
@@ -547,8 +573,7 @@ void App::drawOnlineRoster(Canvas& canvas) {
     header.align = Align::Left;
     header.baseline = Baseline::Middle;
     const std::string title =
-        roster.empty() ? std::string("Online 0")
-                       : ("Online " + std::to_string(roster.size()));
+        std::string(tr(Msg::Online)) + " " + std::to_string(roster.size());
     text(canvas, title, x + 8.0, y + kRosterHeader * 0.5, header);
 
     const double listTop = y + kRosterHeader;
@@ -580,7 +605,10 @@ void App::drawOnlineRoster(Canvas& canvas) {
         std::string line = entry.name + "  Lv" + std::to_string(entry.level);
         if (!entry.guild.empty()) line += "  [" + entry.guild + "]";
         if (!entry.location.empty()) line += "  " + entry.location;
-        else line += "  (lobby)";
+        else {
+            line += "  ";
+            line += tr(Msg::LobbyParen);
+        }
         text(canvas, ellipsize(line, rowStyle.size, kRosterWidth - 16.0), x + 8.0, cy, rowStyle);
     }
     canvas.restore();
@@ -684,7 +712,7 @@ void App::drawMazeMinimap(Canvas& canvas) {
     canvas.rect(static_cast<float>(x), static_cast<float>(y), static_cast<float>(kMinimapSize),
                 static_cast<float>(kMinimapSize));
     canvas.clip();
-    // Same as overworld: everyone in AOI, labeled.
+    // AOI + OnlineRoster (same realm), labeled — roster covers far humans.
     const auto dot = [&](Vec2 world, double radius, std::uint32_t fill, bool outlined,
                          const std::string* label) {
         const double dx = x + (world.x - kMazeOriginX) * scale;
@@ -708,20 +736,44 @@ void App::drawMazeMinimap(Canvas& canvas) {
         text(canvas, *label, dx, dy - radius - 2.0, name);
     };
     const SquadState& squad = net_.squad();
+    const auto squadByName = [&](const std::string& name) {
+        if (!squad.inSquad || name.empty()) return false;
+        for (const auto& m : squad.members) {
+            if (m.name == name || m.account == name) return true;
+        }
+        return false;
+    };
+    std::vector<std::string> painted;
     for (const auto& entry : net_.view().entities()) {
         const RemoteEntity& entity = entry.second;
         if (entity.kind != net::EntityKind::Player || entity.isSelf()) continue;
         const bool squadmate = squad.contains(entry.first);
         const std::string label =
-            entity.name.empty() ? std::string("Flower") : entity.name;
+            entity.name.empty() ? std::string(tr(Msg::Flower)) : entity.name;
         if (squadmate) dot(entity.position, 4.0, 0xFF69B4u, true, &label);
         else dot(entity.position, 4.0, kInk, false, &label);
+        painted.push_back(label);
     }
-    {
-        const std::string selfName =
-            net_.profile().username.empty() ? std::string("You") : net_.profile().username;
-        dot(net_.view().selfDrawnPosition(), 3.0, 0x0000FFu, true, &selfName);
+    const std::string selfName =
+        net_.profile().username.empty() ? std::string(tr(Msg::You)) : net_.profile().username;
+    const std::string& selfAccount = net_.profile().username;
+    constexpr std::uint8_t kMazeRealm = static_cast<std::uint8_t>(Realm::Maze);
+    for (const auto& row : net_.onlineRoster()) {
+        if (!row.placed || row.realm != kMazeRealm) continue;
+        if (row.name == selfName || (!selfAccount.empty() && row.name == selfAccount)) continue;
+        bool already = false;
+        for (const std::string& n : painted) {
+            if (n == row.name) {
+                already = true;
+                break;
+            }
+        }
+        if (already) continue;
+        const Vec2 at{row.x, row.y};
+        if (squadByName(row.name)) dot(at, 4.0, 0xFF69B4u, true, &row.name);
+        else dot(at, 4.0, kInk, false, &row.name);
     }
+    dot(net_.view().selfDrawnPosition(), 3.0, 0x0000FFu, true, &selfName);
     canvas.restore();
 
     canvas.save();
@@ -753,7 +805,7 @@ void App::drawArenaLeaderboard(Canvas& canvas) {
     for (const auto& entry : net_.view().entities()) {
         const RemoteEntity& entity = entry.second;
         if (entity.kind != net::EntityKind::Player) continue;
-        rows.push_back({entity.name.empty() ? std::string("Unnamed") : entity.name,
+        rows.push_back({entity.name.empty() ? std::string(tr(Msg::Unnamed)) : entity.name,
                         static_cast<double>(entity.arenaScore)});
     }
     if (rows.empty()) return;
@@ -811,7 +863,11 @@ void App::drawArenaLeaderboard(Canvas& canvas) {
     header.stroke = 0x222222u;
     header.align = Align::Centre;
     header.baseline = Baseline::Middle;
-    text(canvas, rows.size() == 1 ? std::string("1 Flower") : std::to_string(rows.size()) + " Flowers",
+    text(canvas,
+         language() == Language::Zh
+             ? (std::to_string(rows.size()) + " 朵花")
+             : (rows.size() == 1 ? std::string("1 Flower")
+                                 : std::to_string(rows.size()) + " Flowers"),
          headerX + headerW * 0.5, headerY + kHeaderH * 0.5, header);
 
     const double rowsX = x + (panelW - kRowW) * 0.5;

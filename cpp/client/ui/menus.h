@@ -35,6 +35,7 @@
 #include "client/ui/menu_widgets.h"
 #include "client/ui/touch_scroll.h"
 #include "client/ui/item_tile.h"
+#include "client/ui/i18n.h"
 #include "shared/core/types.h"
 #include "shared/game/skills.h"
 
@@ -292,6 +293,13 @@ struct ClientSettings {
     /// the control scheme it has always shipped with, and defaulting to that
     /// value would take it away from every existing player.
     bool useMouseControls = true;
+    /// Thin aim ray from the flower toward the cursor (AshFlor 移动辅助).
+    /// On by default.
+    bool movementHelper = true;
+    /// When on, attack/defend is the default stance and holding the key or
+    /// button cancels it (AshFlor invert attack / invert defend).
+    bool invertAttack = false;
+    bool invertDefend = false;
     /// Draws the loadout bar the way this client used to: three-quarter-size
     /// slots, the browser port's wide gaps, and the number captions above the
     /// top row. Off by default -- the bar's own shape now follows the
@@ -324,6 +332,8 @@ struct ClientSettings {
     /// the reference's own resume is dead and this one matches it.
     bool tutorialCompleted = false;
     int tutorialStep = 0;
+    /// UI language. Default Chinese; English is opt-in via Settings.
+    ui::Language language = ui::Language::Zh;
 
     ClientSettings();
 
@@ -803,8 +813,8 @@ public:
 private:
     enum class Phase : std::uint8_t { Idle, Spinning, Result };
 
-    /// Adds up to one more batch of this petal to the staging area.
-    void stage(const Profile&, std::uint16_t petalIndex, Rarity rarity, bool wholeStack);
+    /// Adds up to `addBatches` more batches of this petal (`UINT32_MAX` = fill).
+    void stage(const Profile&, std::uint16_t petalIndex, Rarity rarity, std::uint32_t addBatches);
     /// Steps the ring's eases by `dtMs`.
     void animate(double dtMs);
 
@@ -814,6 +824,17 @@ private:
     std::uint16_t stagedPetal_ = kNoPetal;
     Rarity stagedRarity_ = Rarity::Common;
     int batches_ = 0;
+
+    /// Grid cell held down: same cadence as Absorb (1 s delay, then 300 ms
+    /// steps that grow by a third + 1 each time), counting in batches.
+    std::uint16_t heldPetal_ = kNoPetal;
+    Rarity heldRarity_ = Rarity::Common;
+    double heldNextMs_ = 0;
+    std::uint32_t heldStep_ = 1;
+
+    /// "Craft All" toggle: when on, a click on a craftable petal stages every
+    /// available batch (Shift-click's behaviour). Survives close/reopen.
+    bool fillAllMode_ = false;
 
     Phase phase_ = Phase::Idle;
     double phaseStarted_ = 0;
@@ -1214,8 +1235,10 @@ private:
         /// and the pulse once it has.
         double wobble = 0;
         double pulse = 0;
-        /// Bought by a hold and not yet confirmed by the server.
+        /// Bought or refunded by a hold and not yet confirmed by the server.
         bool requested = false;
+        /// True when `requested` is a refund rather than a purchase.
+        bool refunding = false;
         double requestedMs = 0;
     };
 
@@ -1513,6 +1536,11 @@ public:
     /// was consumed, so the game does not also act on it.
     bool handleKeys(Window&);
 
+    /// Mobile R button: a short tap swaps the two loadout rows; holding past
+    /// the long-press threshold opens the L preset bank on the secondary row
+    /// (florr's hold-X). Call each playing frame while touch controls are up.
+    void noteMobileLoadoutGestures(bool swapRowsTap, bool presetsHeld);
+
     /// True while the client is in a game, which is the only time the exit
     /// button is offered -- and the only time the changelog, Discord, and QQ
     /// buttons are not.
@@ -1720,12 +1748,17 @@ private:
     /// discoverable version of one. Silent for every other petal, which is
     /// nearly all of them, and silent for a slot still reloading.
     void useLoadoutSlot(NetClient&, int slot);
+    /// A click (not a drag) on a loadout slot: click-to-use petals fire; else
+    /// primary ↔ secondary in that column (either row).
+    void clickLoadoutSlot(NetClient&, double timeSeconds, int slot);
     void drawDragged(Canvas&, Window&, const SpriteCache&, double timeSeconds);
     void activateStripSlot(int slot);
     /// While this client is steering another player's flower: a "Release
     /// <name>" chip under the strip, clear of the bottom column, and its click.
     /// Painted under the open card, which keeps any click it is standing on.
     void drawReleaseChip(Canvas&, Window&, NetClient&);
+    /// Top-left Accept/Decline toasts for pending guild / squad invites.
+    void drawInviteToasts(Canvas&, Window&, NetClient&);
 
     MenuId open_ = MenuId::None;
     /// The card being painted. It outlives `open_` by the length of the
@@ -1776,6 +1809,8 @@ private:
     /// The Release chip as last painted, for capturesMouse(). Empty while no
     /// control is running.
     Rect releaseRect_{};
+    /// Invite toast cards as last painted (guild and/or squad), for hits.
+    std::array<Rect, 2> inviteToastRects_{};
 
     /// The icon artwork, compiled on first use. One document per glyph, shared
     /// with nothing; the shop compiles its own two copies of the star.
@@ -1802,6 +1837,15 @@ private:
     /// Recomputed by the draw pass, which is the only one that lays the bar
     /// out, and read by the input pass that runs after it.
     int loadoutHovered_ = -1;
+    /// Press on an empty loadout slot (no petal to drag); click-swap on release.
+    /// Also a press on a preset tile (K/L bank / mobile R hold) awaiting tap
+    /// or long-press save.
+    int loadoutPressSlot_ = -1;
+    /// When that press started (`timeSeconds`); long-press save uses it.
+    double loadoutPressAt_ = 0;
+    /// True once a long-press on a preset tile already fired save -- a release
+    /// after that must not also load the same slot.
+    bool loadoutPressSaved_ = false;
     /// Where the pointer was when a petal was lifted off the bar, so a release
     /// that barely moved can still be told from a drag. See drawLoadoutBar.
     Vec2 loadoutGrabAt_{};
@@ -1837,10 +1881,16 @@ private:
     /// was a plain tap and gets the key's old action.
     std::array<bool, kLoadoutPresetBanks> presetTapArmed_{};
     /// The bank whose key is held this frame, or -1: its presets take the
-    /// second row's place until it is let go. Set by handleKeys and cleared by
-    /// the bar once drawn, so a frame handleKeys skips -- chat open, a text
-    /// field focused -- shows the loadout rather than a stale preview.
+    /// second row's place until it is let go. Set by handleKeys / the mobile
+    /// R long-press and cleared by the bar once drawn, so a frame handleKeys
+    /// skips -- chat open, a text field focused -- shows the loadout rather
+    /// than a stale preview.
     int presetBankShown_ = -1;
+    /// Bank shown on the bar this frame (copy of presetBank before clear).
+    /// updateLoadoutInput reads it so a tap on a secondary preset tile can
+    /// load that saved loadout -- the hover pass alone cannot, because the
+    /// petal under the tile is not what the player is picking.
+    int loadoutPresetBank_ = -1;
 
     /// One loadout tile's animated box, in canvas units.
     ///
@@ -1936,6 +1986,8 @@ private:
 
 /// A menu's display name, which main.cpp's `--menu <name>` is matched against.
 const char* menuLabel(MenuId);
+/// Always-English menu name (CLI / --menu slug). UI should use menuTitle().
+const char* menuLabelEn(MenuId);
 /// A key's name as the strip's key caps and the bar's row-swap caption print
 /// it ("Z", "Esc"). "Unbound" for Key::Unknown. The settings list spells its
 /// keys its own way (menu_settings.cpp's keyLabel).

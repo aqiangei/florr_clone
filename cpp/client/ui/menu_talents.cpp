@@ -18,6 +18,9 @@
 //
 // A node is bought by HOLDING it: 250 ms down on one the account can afford
 // buys it and every tier still missing below it, the cost its badge shows.
+// Holding an already-owned node refunds that tier and everything above it on
+// the branch (and fork children that then lose their prerequisite) -- florr's
+// hold-to-unlearn.
 //
 // What is ours: the talents; how they are arranged -- the long branches wear
 // florr's zig-zag and spiral, but which branch stands where and everything
@@ -31,6 +34,7 @@
 #include <string>
 #include <vector>
 
+#include "client/ui/content_i18n.h"
 #include "client/ui/menu_theme.h"
 #include "client/ui/menus.h"
 #include "client/render/mob_art.h"
@@ -82,7 +86,7 @@ constexpr double kBadgeHitInset = 12.0;
 constexpr double kBadgeHitHeight = 56.0;
 constexpr double kBadgeHitExtra = 63.0;
 constexpr double kBadgeTipY = 78.0;
-constexpr const char* kBadgeTip = "You can acquire more TP by leveling up";
+// Tip text comes from tipMoreTp() so it follows the language toggle.
 constexpr double kBadgeTipSize = 16.0;
 
 // -- the tree -----------------------------------------------------------------
@@ -364,45 +368,71 @@ std::string fromTo(const std::array<double, kLadderRarityCount>& table, int tier
 std::vector<TipRow> description(SkillId skill, int tier) {
     std::vector<TipRow> rows;
     const auto row = [&](std::vector<Run> runs) { rows.push_back({kTipBodySize, std::move(runs)}); };
-    char buffer[96];
+    const bool cn = language() == Language::Zh;
+    char buffer[128];
     switch (skill) {
         case SkillId::PlayerHealth:
-            row({{"Increases base "}, {"Flower Health", kStatHealth},
-                 {" " + fromTo(kStatSkillScale, tier)}});
+            if (cn) row({{"提升基础"}, {"花朵生命", kStatHealth}, {" " + fromTo(kStatSkillScale, tier)}});
+            else row({{"Increases base "}, {"Flower Health", kStatHealth},
+                      {" " + fromTo(kStatSkillScale, tier)}});
             break;
         case SkillId::Damage:
-            // One talent, two curves: a body slam on the stat table, every
-            // petal hit on the effect table (see recomputeModifiers).
-            row({{"Increases "}, {"Body Damage", kStatDamage}, {" " + fromTo(kStatSkillScale, tier)}});
-            row({{"Increases petal "}, {"Damage", kStatDamage},
-                 {" " + fromTo(kEffectSkillScale, tier)}});
+            if (cn) {
+                row({{"提升"}, {"体伤", kStatDamage}, {" " + fromTo(kStatSkillScale, tier)}});
+                row({{"提升花瓣"}, {"伤害", kStatDamage}, {" " + fromTo(kEffectSkillScale, tier)}});
+            } else {
+                row({{"Increases "}, {"Body Damage", kStatDamage},
+                     {" " + fromTo(kStatSkillScale, tier)}});
+                row({{"Increases petal "}, {"Damage", kStatDamage},
+                     {" " + fromTo(kEffectSkillScale, tier)}});
+            }
             break;
         case SkillId::PetalHealth:
-            row({{"Increases "}, {"Petal Health", kStatHealth},
-                 {" " + fromTo(kHealthSkillScale, tier)}});
+            if (cn) row({{"提升"}, {"花瓣生命", kStatHealth},
+                         {" " + fromTo(kHealthSkillScale, tier)}});
+            else row({{"Increases "}, {"Petal Health", kStatHealth},
+                      {" " + fromTo(kHealthSkillScale, tier)}});
             break;
         case SkillId::PetHealth:
-            row({{"Increases "}, {"Health", kStatHealth},
-                 {" of summoned mobs " + fromTo(kHealthSkillScale, tier)}});
+            if (cn) row({{"提升召唤物"}, {"生命", kStatHealth},
+                         {" " + fromTo(kHealthSkillScale, tier)}});
+            else row({{"Increases "}, {"Health", kStatHealth},
+                      {" of summoned mobs " + fromTo(kHealthSkillScale, tier)}});
             break;
         case SkillId::Healing:
-            row({{"Increases "}, {"Healing", kStatHeal},
-                 {" from your petals " + fromTo(kEffectSkillScale, tier)}});
+            if (cn) row({{"提升花瓣"}, {"治疗", kStatHeal},
+                         {" " + fromTo(kEffectSkillScale, tier)}});
+            else row({{"Increases "}, {"Healing", kStatHeal},
+                      {" from your petals " + fromTo(kEffectSkillScale, tier)}});
             break;
         case SkillId::Absorbing:
-            row({{"Increases absorb XP " + fromTo(kAbsorbSkillScale, tier)}});
+            if (cn) row({{"提升吸收经验 " + fromTo(kAbsorbSkillScale, tier)}});
+            else row({{"Increases absorb XP " + fromTo(kAbsorbSkillScale, tier)}});
             break;
         case SkillId::Reload: {
-            // A reload is a wait, so florr quotes what comes OFF it.
             const double before = tier > 0 ? 1.0 - scaleAt(kReloadSkillScale, tier - 1) : 0.0;
             const double after = 1.0 - scaleAt(kReloadSkillScale, tier);
-            row({{"Decreases the reload time for petals from -" + percent(before) + " to -" +
-                  percent(after) + "."}});
+            if (cn) {
+                row({{"将花瓣装填时间从 -" + percent(before) + " 降至 -" + percent(after) + "。"}});
+            } else {
+                row({{"Decreases the reload time for petals from -" + percent(before) + " to -" +
+                      percent(after) + "."}});
+            }
             break;
         }
         case SkillId::SecondChance: {
             const auto [duration, cooldown] = secondChanceEffect(tier);
-            if (tier == 0) {
+            if (cn) {
+                if (tier == 0) {
+                    std::snprintf(buffer, sizeof buffer,
+                                  "受到致命伤害时免死 %.3g 秒。冷却 %.3g 秒。",
+                                  duration / 1000.0, cooldown / 1000.0);
+                } else {
+                    std::snprintf(buffer, sizeof buffer,
+                                  "持续时间增至 %.3g 秒，冷却降至 %.3g 秒。",
+                                  duration / 1000.0, cooldown / 1000.0);
+                }
+            } else if (tier == 0) {
                 std::snprintf(buffer, sizeof buffer,
                               "Prevents death for %gs upon taking fatal damage. Has a %gs cooldown.",
                               duration / 1000.0, cooldown / 1000.0);
@@ -415,21 +445,40 @@ std::vector<TipRow> description(SkillId skill, int tier) {
             break;
         }
         case SkillId::Duplicator:
-            std::snprintf(buffer, sizeof buffer, "Adds %s for petals that have at least %d copies.",
-                          tier == 0 ? "an extra copy" : "two extra copies", kDuplicatorMinCopies);
+            if (cn) {
+                std::snprintf(buffer, sizeof buffer,
+                              "为至少拥有 %d 份的花瓣%s。", kDuplicatorMinCopies,
+                              tier == 0 ? "额外增加 1 份" : "额外增加 2 份");
+            } else {
+                std::snprintf(buffer, sizeof buffer,
+                              "Adds %s for petals that have at least %d copies.",
+                              tier == 0 ? "an extra copy" : "two extra copies",
+                              kDuplicatorMinCopies);
+            }
             row({{buffer}});
             break;
         case SkillId::Magnetism: {
             const auto at = static_cast<std::size_t>(std::clamp(tier, 0, 2));
-            std::snprintf(buffer, sizeof buffer, "Increases petal pick up range by %.0f.",
-                          kMagnetismBonus[at]);
+            if (cn) {
+                std::snprintf(buffer, sizeof buffer, "花瓣拾取范围增加 %.0f。",
+                              kMagnetismBonus[at]);
+            } else {
+                std::snprintf(buffer, sizeof buffer, "Increases petal pick up range by %.0f.",
+                              kMagnetismBonus[at]);
+            }
             row({{buffer}});
             break;
         }
         case SkillId::Prestige:
-            row({{"Unlocks the "}, {"Prestige", kPrestigeYellow}, {" biomes."}});
-            row({{"Every mob there is +1 rarity."}});
-            row({{"No Unique or Apex mobs spawn there."}});
+            if (cn) {
+                row({{"解锁"}, {"声望", kPrestigeYellow}, {" 生物群系。"}});
+                row({{"其中每个怪物稀有度 +1。"}});
+                row({{"不会生成永恒或顶点怪物。"}});
+            } else {
+                row({{"Unlocks the "}, {"Prestige", kPrestigeYellow}, {" biomes."}});
+                row({{"Every mob there is +1 rarity."}});
+                row({{"No Unique or Apex mobs spawn there."}});
+            }
             break;
         default: break;
     }
@@ -440,10 +489,10 @@ std::vector<TipRow> description(SkillId skill, int tier) {
 /// name, so its box goes straight from the name to the description.
 std::vector<TipRow> tooltipRows(SkillId skill, int tier) {
     std::vector<TipRow> rows;
-    rows.push_back({kTipNameSize, {{skillTierLabel(skill, tier)}}});
+    rows.push_back({kTipNameSize, {{skillTr(skill, tier)}}});
     if (skill != SkillId::Prestige) {
         const Rarity rarity = clampRarity(tier);
-        rows.push_back({kTipBodySize, {{rarityLabel(rarity), rarityColor(rarity)}}});
+        rows.push_back({kTipBodySize, {{rarityTr(rarity), rarityColor(rarity)}}});
     }
     std::vector<TipRow> body = description(skill, tier);
     if (!body.empty()) body.front().gapBefore = kTipGap;
@@ -889,6 +938,7 @@ void TalentsPanel::reset() {
     for (Node& node : nodes_) {
         node.hover = node.tooltip = node.hint = node.wobble = node.pulse = 0;
         node.requested = false;
+        node.refunding = false;
     }
     grains_.clear();
     // The scroll is kept from one opening to the next, as florr keeps it.
@@ -946,7 +996,7 @@ bool TalentsPanel::render(MenuContext& ctx) {
     const Rect closeHit{closeSquare.x - kCloseRimGap, closeSquare.y - kCloseRimGap,
                         kCloseSide + kCloseRimGap * 2.0, kCloseSide + kCloseRimGap * 2.0};
     const double resetWidth =
-        measure("Reset", kResetLabelSize) + outlinePad(kResetLabelSize) + kResetPadX * 2.0;
+        measure(tipReset(), kResetLabelSize) + outlinePad(kResetLabelSize) + kResetPadX * 2.0;
     const Rect resetRect{panel.right() - kPad - resetWidth, panel.bottom() - kPad - kResetHeight,
                          resetWidth, kResetHeight};
     const Rect resetHit{resetRect.x - kButtonBorder * 0.5, resetRect.y - kButtonBorder * 0.5,
@@ -1019,16 +1069,27 @@ bool TalentsPanel::render(MenuContext& ctx) {
     }
     const bool down = ctx.window.mouseDown(MouseButton::Left);
     // A hold lasts while the press stays on its node and the node can still
-    // be bought; it buys once.
-    const bool holding = down && pressedNode_ >= 0 && pressedNode_ == hovered &&
-                         affordable(nodes_[static_cast<std::size_t>(pressedNode_)]);
+    // be bought OR refunded; it fires once.
+    const bool holdingBuy =
+        down && pressedNode_ >= 0 && pressedNode_ == hovered &&
+        affordable(nodes_[static_cast<std::size_t>(pressedNode_)]);
+    const bool holdingRefund =
+        down && pressedNode_ >= 0 && pressedNode_ == hovered &&
+        owned(nodes_[static_cast<std::size_t>(pressedNode_)]);
+    const bool holding = holdingBuy || holdingRefund;
     if (holding) {
         holdMs_ += dtMs;
         Node& node = nodes_[static_cast<std::size_t>(pressedNode_)];
         if (holdMs_ > kHoldMs && !holdBought_) {
             holdBought_ = true;
-            for (const SkillStep& step : skillPurchasePath(skills, node.skill, node.tier)) {
-                ctx.net.requestUpgradeSkill(step.id, step.tier);
+            if (holdingRefund) {
+                ctx.net.requestDowngradeSkill(node.skill, node.tier);
+                node.refunding = true;
+            } else {
+                for (const SkillStep& step : skillPurchasePath(skills, node.skill, node.tier)) {
+                    ctx.net.requestUpgradeSkill(step.id, step.tier);
+                }
+                node.refunding = false;
             }
             node.requested = true;
             node.requestedMs = holdMs_;
@@ -1059,16 +1120,22 @@ bool TalentsPanel::render(MenuContext& ctx) {
         const bool isHovered = static_cast<int>(i) == hovered;
         const bool isHeld = holding && static_cast<int>(i) == pressedNode_;
         const bool canBuy = affordable(node);
-        if (node.requested && owned(node)) {
-            // The purchase landed: a pulse, the flower's bulge and a burst.
+        const bool canRefund = owned(node);
+        const bool landed = node.requested && (node.refunding ? !owned(node) : owned(node));
+        if (landed) {
+            // Purchase or refund landed: a pulse, the flower's bulge and a burst.
             node.requested = false;
+            node.refunding = false;
             node.pulse = 1.0;
             flash_ = 1.0;
             grains_.burst(node.at, tierColor(node.skill, node.tier), kBurstGrains, kBurstShape);
         }
         if (node.requested && !isHeld) {
             node.requestedMs += dtMs;
-            if (node.requestedMs > kRequestTimeoutMs) node.requested = false;
+            if (node.requestedMs > kRequestTimeoutMs) {
+                node.requested = false;
+                node.refunding = false;
+            }
         }
         if (isHeld || node.requested) {
             node.wobble = std::sin(kWobbleRate * (isHeld ? holdMs_ : node.requestedMs));
@@ -1076,9 +1143,11 @@ bool TalentsPanel::render(MenuContext& ctx) {
             node.wobble -= node.wobble * hoverStep;
         }
         node.pulse -= node.pulse * hoverStep;
-        node.hover += ((isHovered && canBuy && !isHeld ? 1.0 : 0.0) - node.hover) * hoverStep;
+        node.hover +=
+            ((isHovered && (canBuy || canRefund) && !isHeld ? 1.0 : 0.0) - node.hover) * hoverStep;
         node.tooltip += ((isHovered && !isHeld ? 1.0 : 0.0) - node.tooltip) * tipStep;
-        node.hint += ((isHovered && canBuy ? 1.0 : 0.0) - node.hint) * tipStep;
+        node.hint +=
+            ((isHovered && (canBuy || canRefund) ? 1.0 : 0.0) - node.hint) * tipStep;
     }
     flash_ -= flash_ * ease(dtMs, kFlashRate);
     badgeTip_ += ((live && badgeHit.contains(mouse) ? 1.0 : 0.0) - badgeTip_) * tipStep;
@@ -1202,9 +1271,9 @@ bool TalentsPanel::render(MenuContext& ctx) {
     // Reset, the title and the close button, over the tree.
     drawFlorrButton(canvas, resetRect, anyOwned ? kResetFace : kResetIdleFace, kButtonBorder,
                     kButtonRadius, overReset, overReset && resetHeld_);
-    text(canvas, "Reset", resetRect.x + resetRect.w * 0.5, resetRect.y + resetRect.h * 0.5,
+    text(canvas, tipReset(), resetRect.x + resetRect.w * 0.5, resetRect.y + resetRect.h * 0.5,
          florrLabel(kResetLabelSize, kPaper, Align::Centre));
-    text(canvas, "Talents", panel.x + panel.w * 0.5, rowMiddle,
+    text(canvas, menuTitle(MenuId::Talents), panel.x + panel.w * 0.5, rowMiddle,
          florrLabel(kTitleSize, kPaper, Align::Centre));
     drawFlorrClose(canvas, closeSquare, overClose, overClose && closeHeld_);
     // florr paints the rim a second time, so nothing inside overruns it.
@@ -1213,7 +1282,7 @@ bool TalentsPanel::render(MenuContext& ctx) {
     // -- tooltips, over everything ---------------------------------------------
     const double viewWidth = static_cast<double>(canvas.width());
     if (badgeTip_ > 1e-3) {
-        const std::vector<TipRow> rows = {{kBadgeTipSize, {{kBadgeTip}}}};
+        const std::vector<TipRow> rows = {{kBadgeTipSize, {{tipMoreTp()}}}};
         const Vec2 size = tipSize(rows);
         const double anchorY = inner.y + kBadgeTipY;
         paintTip(canvas, {tipLeft(badge.x, size.x, viewWidth), anchorY - kTipUnder}, rows, badgeTip_);
@@ -1227,7 +1296,8 @@ bool TalentsPanel::render(MenuContext& ctx) {
                      rows, node.tooltip);
         }
         if (node.hint > 1e-3) {
-            const std::vector<TipRow> rows = {{kTipBodySize, {{"HOLD to upgrade"}}}};
+            const char* holdTip = owned(node) ? tipHoldRefund() : tipHoldUpgrade();
+            const std::vector<TipRow> rows = {{kTipBodySize, {{holdTip}}}};
             const Vec2 size = tipSize(rows);
             paintTip(canvas, {tipLeft(node.at.x, size.x, viewWidth), node.at.y + kTipBelow}, rows,
                      node.hint);

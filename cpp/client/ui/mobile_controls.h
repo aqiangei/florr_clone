@@ -1,9 +1,9 @@
 #pragma once
-// The touch HUD: a virtual stick for movement and aim, and the two buttons
-// that stand in for the keys a phone does not have.
+// The touch HUD: a virtual stick for movement and aim, and the buttons that
+// stand in for the keys a phone does not have.
 //
 // A port of the browser build's src/graphics/mobile-controls.ts, control for
-// control, with one thing done differently and one thing added.
+// control, with one thing done differently and a few things added.
 //
 // Differently: the sizes. The reference is written in CSS pixels on a canvas
 // the size of the viewport, so its 55px stick radius is a thumb on a phone and
@@ -14,9 +14,11 @@
 // controls then land at the same fraction of the screen a phone player sees
 // there, which is what the reference's numbers were chosen for.
 //
-// Added: aim. The reference aims at the mouse even on a phone, where "the
-// mouse" is wherever the last tap happened to land. Here a deflected stick
-// aims as well as moves, which is the only thing a thumb can say.
+// Added: aim (a deflected stick aims as well as moves), and an R button that
+// stands in for Swap loadout rows -- tap swaps the two rows; a long press
+// holds the L preset bank open so the secondary slots can load a saved
+// loadout (tap a tile) or save into one (hold a tile ~0.42 s), which is
+// florr's hold-X on mobile.
 
 #include <cstdint>
 #include <vector>
@@ -36,9 +38,13 @@ namespace flix::ui {
 /// number the reference writes for the same control.
 inline constexpr double kTouchScale = 2.4;
 
+/// How long the R button must be held before it opens the preset row instead
+/// of swapping the two loadout rows on release.
+inline constexpr double kSwapLongPressSeconds = 0.35;
+
 class MobileControls {
 public:
-    /// Anchors the three controls for a viewport of this size.
+    /// Anchors the controls for a viewport of this size.
     ///
     /// `loadoutBarHeight` is what the loadout bar occupies from the bottom
     /// edge: the bar is centred and reaches nearly to the edge on its own, so
@@ -53,8 +59,9 @@ public:
     bool hits(double x, double y) const;
 
     /// One frame of the touch stream. Contacts that landed on a control are
-    /// bound to it here and followed until they lift.
-    void update(const std::vector<TouchEvent>& events);
+    /// bound to it here and followed until they lift. `timeSeconds` times the
+    /// R button's long-press threshold.
+    void update(const std::vector<TouchEvent>& events, double timeSeconds);
 
     /// Drops every contact -- what a screen change, a panel opening over the
     /// controls or the setting being switched off has to do, or a stick that
@@ -75,9 +82,22 @@ public:
     Vec2 stickCentre() const { return stickCentre_; }
     Vec2 attackCentre() const { return attackCentre_; }
     Vec2 retractCentre() const { return retractCentre_; }
+    Vec2 swapCentre() const { return swapCentre_; }
+    /// Answering radius of the stick (drawn radius × slack × layout scale).
+    /// Chat layout sits above this ring so a thumb sliding to move does not
+    /// land on the closed chat slot.
+    double stickHitRadius() const;
 
     bool attackPressed() const { return attack_.held; }
     bool retractPressed() const { return retract_.held; }
+
+    /// True after a short tap on R (released before the long-press threshold).
+    /// Consumed: one call clears it so a held frame does not re-fire the swap.
+    bool consumeSwapRowsTap();
+
+    /// True once R has been held past the long-press threshold and is still
+    /// down -- the L preset bank should cover the secondary row.
+    bool presetsHeld() const { return swap_.held && swapLong_; }
 
     void draw(Canvas&) const;
 
@@ -96,7 +116,7 @@ private:
     /// corner of the first frame it is asked about.
     bool placed_ = false;
     /// Everything shrinks by this together, and it is 1 on any viewport wide
-    /// enough to lay the three controls out side by side -- which is every
+    /// enough to lay the controls out side by side -- which is every
     /// landscape one. See layout().
     double scale_ = 1.0;
     /// Where the finger holding the stick is, relative to the stick's centre,
@@ -106,12 +126,18 @@ private:
     Vec2 stickCentre_{0, 0};
     Vec2 attackCentre_{0, 0};
     Vec2 retractCentre_{0, 0};
+    Vec2 swapCentre_{0, 0};
 
-    // Three fingers can be down at once, and only their ids tell the streams
+    // Fingers can be down at once, and only their ids tell the streams
     // apart -- a position cannot, once two of them are moving.
     Contact stick_;
     Contact attack_;
     Contact retract_;
+    Contact swap_;
+
+    double swapDownAt_ = -1.0;
+    bool swapLong_ = false;
+    bool swapTapPending_ = false;
 
     void moveKnob(double x, double y);
 };

@@ -1,4 +1,5 @@
 #include "client/ui/menus.h"
+#include "client/ui/content_i18n.h"
 #include "client/ui/text_select.h"
 #include "client/ease.h"
 
@@ -19,6 +20,8 @@
 #include "client/ui/item_tile.h"
 #include "client/ui/menu_icons.h"
 #include "client/ui/menu_theme.h"
+#include "client/ui/qq_logo.h"
+#include "client/ui/remote_image.h"
 #include "client/ui/text.h"
 #include "shared/game/config.h"
 
@@ -35,9 +38,10 @@ EM_JS(int, flix_open_external_link, (const char* url), {
 });
 
 /// AshFlor QQ dialog: join link + copyable group id (same UX as ashflor DOM::open_qq_group).
-EM_JS(void, flix_open_ashflor_qq, (const char* groupId, const char* inviteUrl), {
+EM_JS(void, flix_open_ashflor_qq, (const char* groupId, const char* inviteUrl, const char* logoData), {
     const id = UTF8ToString(groupId);
     const invite = UTF8ToString(inviteUrl);
+    const logo = UTF8ToString(logoData);
     if (!document.getElementById("ashflor-qq-dialog-style")) {
         const style = document.createElement("style");
         style.id = "ashflor-qq-dialog-style";
@@ -69,7 +73,8 @@ EM_JS(void, flix_open_ashflor_qq, (const char* groupId, const char* inviteUrl), 
     const dialog = document.createElement("dialog");
     dialog.id = "ashflor-qq-dialog";
     dialog.innerHTML =
-        "<h2>Ashflor 交流群</h2>"
+        "<img alt=\"QQ\" width=\"52\" height=\"52\">"
+        + "<h2>Ashflor 交流群</h2>"
         + "<p>QQ群：<strong>" + id + "</strong></p>"
         + "<p class=\"qq-hint\">打不开 QQ 时，可以复制群号搜索加入。</p>"
         + "<div class=\"qq-actions\">"
@@ -80,6 +85,7 @@ EM_JS(void, flix_open_ashflor_qq, (const char* groupId, const char* inviteUrl), 
         +   "</div>"
         + "</div>"
         + "<p data-status role=\"status\"></p>";
+    dialog.querySelector("img").src = logo;
     dialog.querySelector("[data-copy]").onclick = async function() {
         const status = dialog.querySelector("[data-status]");
         try { await navigator.clipboard.writeText(id); status.textContent = "群号已复制"; }
@@ -110,7 +116,7 @@ bool openExternalLink(const std::string& url) {
 
 void openAshflorQqGroup() {
 #ifdef __EMSCRIPTEN__
-    flix_open_ashflor_qq(kAshflorQqGroupId, kAshflorQqInvite);
+    flix_open_ashflor_qq(kAshflorQqGroupId, kAshflorQqInvite, QQ_LOGO_DATA);
 #else
     openExternalLink(kAshflorQqInvite);
 #endif
@@ -345,6 +351,10 @@ constexpr double kLoadoutEchoGrace = 1.0;
 /// it off. Wider than the 6-10 unit gaps between slots, which a finger lifting
 /// from a tap drifts across; far short of any drag meant to unequip.
 constexpr double kLoadoutClickSlop = 16.0;
+/// Hold a preset tile this long to save the current loadout there (ashflor /
+/// florr mobile: tap = load, long-press = save). Shift+K/L+number still saves
+/// on desktop the same way.
+constexpr double kPresetSaveHoldSeconds = 0.42;
 
 struct LoadoutLayout {
     std::array<Rect, kLoadoutBarSlots> slots{};
@@ -598,9 +608,17 @@ int cycleSecondary(const std::vector<Profile::Slot>& loadout, int current, int s
 
 } // namespace
 
-const char* menuLabel(MenuId id) {
+const char* menuLabelEn(MenuId id) {
     const int i = menuIndex(id);
     return (i >= 0 && i < kMenuCount) ? kMenus[static_cast<std::size_t>(i)].label : "";
+}
+
+const char* menuLabel(MenuId id) {
+    // Translated for any UI that still calls menuLabel(); English stays in menuLabelEn.
+    if (const char* titled = ui::menuTitle(id); titled != nullptr && titled[0] != '\0') {
+        return titled;
+    }
+    return menuLabelEn(id);
 }
 
 const char* keyName(Key key) {
@@ -771,12 +789,18 @@ bool ClientSettings::load(const std::string& path) {
         else if (key == "biome") spawnChoice = (value == "-" ? std::string() : value);
         else if (key == "prestige") prestige = number != 0;
         else if (key == "mouseControls") useMouseControls = number != 0;
+        else if (key == "movementHelper") movementHelper = number != 0;
+        else if (key == "invertAttack") invertAttack = number != 0;
+        else if (key == "invertDefend") invertDefend = number != 0;
         else if (key == "classicLoadout") classicLoadoutBar = number != 0;
         // The key being on disk at all is the choice: an absent one leaves the
         // device to answer, which is what touchControlsWanted does with it.
         else if (key == "requestMobile") { requestMobile = number != 0; requestMobileChosen = true; }
         else if (key == "tutorialDone") tutorialCompleted = number != 0;
         else if (key == "tutorialStep") tutorialStep = number;
+        else if (key == "language") {
+            language = (value == "en") ? ui::Language::En : ui::Language::Zh;
+        }
         else if (key == "notifRead") readNotifications.push_back(value);
         else if (key.rfind("key.", 0) == 0) {
             const int slot = std::atoi(key.c_str() + 4);
@@ -823,9 +847,13 @@ bool ClientSettings::save(const std::string& path) const {
          << "spawn " << (spawnChoice.empty() ? std::string("-") : spawnChoice) << '\n'
          << "prestige " << (prestige ? 1 : 0) << '\n'
          << "mouseControls " << (useMouseControls ? 1 : 0) << '\n'
+         << "movementHelper " << (movementHelper ? 1 : 0) << '\n'
+         << "invertAttack " << (invertAttack ? 1 : 0) << '\n'
+         << "invertDefend " << (invertDefend ? 1 : 0) << '\n'
          << "classicLoadout " << (classicLoadoutBar ? 1 : 0) << '\n'
          << "tutorialDone " << (tutorialCompleted ? 1 : 0) << '\n'
-         << "tutorialStep " << tutorialStep << '\n';
+         << "tutorialStep " << tutorialStep << '\n'
+         << "language " << (language == ui::Language::En ? "en" : "zh") << '\n';
     // Written only once the player has actually chosen. Writing the resolved
     // value instead would pin whatever the device answered on the first run,
     // and a phone that opened the game on a desktop-shaped browser would be
@@ -907,6 +935,14 @@ void MenuSystem::toggle(MenuId id) {
 void MenuSystem::close() {
     open_ = MenuId::None;
     drag_.clear();
+}
+
+void MenuSystem::noteMobileLoadoutGestures(bool swapRowsTap, bool presetsHeld) {
+    if (!inGame_) return;
+    // Short tap = R. Long hold opens the L bank -- florr's mobile hold-X
+    // shows L1..L0 on the secondary row.
+    if (swapRowsTap) pendingRowSwap_ = true;
+    if (presetsHeld) presetBankShown_ = 1;
 }
 
 bool MenuSystem::handleKeys(Window& window) {
@@ -1168,6 +1204,8 @@ const SvgDocument* MenuSystem::icon(int index) {
 const std::array<MenuSystem::StripSlot, kStripSlotCount>& MenuSystem::strip() {
     using A = StripAction;
     static const std::array<StripSlot, kStripSlotCount> kSlots = {{
+        // Far-left like ashflor's title-screen QQ badge.
+        {MenuId::None,          A::Qq,       "qq",            true,  0x12B7F5u, 0x0E92C4u},
         {MenuId::Settings,      A::OpenMenu, "settings",      true,  0xB3B3B3u, 0x8F8F8Fu},
         {MenuId::Changelog,     A::OpenMenu, "changelog",     true,  0x00DB3Eu, 0x00AF32u},
         {MenuId::Notifications, A::OpenMenu, "notifications", true,  0x4A90E2u, 0x3B73B5u},
@@ -1179,8 +1217,6 @@ const std::array<MenuSystem::StripSlot, kStripSlotCount>& MenuSystem::strip() {
         // The talents button's purple, which is also the card's (kAccountSkin).
         {MenuId::Account,       A::OpenMenu, "account",       true,  kAccountSkin.fill,
          kAccountSkin.border},
-        // AshFlor QQ group — same invite as ashflor title-screen badge.
-        {MenuId::None,          A::Qq,       "qq",            true,  0x12B7F5u, 0x0E92C4u},
         {MenuId::None,          A::Discord,  "discord",       true,  0x5865F2u, 0x4752C4u},
         {MenuId::Debug,         A::OpenMenu, "debug",         true,  0x666666u, 0x4D4D4Du},
         // The panel's own card colours, so the button says which card it opens.
@@ -1363,7 +1399,12 @@ void MenuSystem::drawIconStrip(Canvas& canvas, Window& window, double timeSecond
         }
 
         // After the tint, so the glyph is never washed out by it.
-        if (const SvgDocument* glyph = icon(ui::menuIconIndex(slot.icon))) {
+        // QQ uses the official penguin logo (same asset as ashflor), not the
+        // white SVG glyph the other strip buttons share.
+        if (slot.action == StripAction::Qq) {
+            drawRemoteImage(canvas, QQ_LOGO_DATA, r.x + (r.w - style.glyph) * 0.5,
+                            r.y + (r.h - style.glyph) * 0.5, style.glyph, style.glyph);
+        } else if (const SvgDocument* glyph = icon(ui::menuIconIndex(slot.icon))) {
             glyph->renderFitted(canvas, static_cast<float>(r.x + (r.w - style.glyph) * 0.5),
                                 static_cast<float>(r.y + (r.h - style.glyph) * 0.5),
                                 static_cast<float>(style.glyph), static_cast<float>(timeSeconds));
@@ -1505,6 +1546,9 @@ const double kLoadoutTileEaseSeconds = easeTimeConstant(0.15);
 /// per 60 fps frame, the browser's ratio.
 const double kLoadoutSlideEaseSeconds = easeTimeConstant(0.2);
 
+/// Dwell before a loadout-slot petal card appears -- same 200 ms as inventory.
+TooltipDelay loadoutTooltipDelay;
+
 bool sameSlot(const Profile::Slot& a, const Profile::Slot& b) {
     return a.petalIndex == b.petalIndex && a.rarity == b.rarity;
 }
@@ -1523,9 +1567,11 @@ void MenuSystem::drawLoadoutBar(Canvas& canvas, Window& window, NetClient& net,
                                 const SpriteCache& sprites, const WorldRenderer& renderer,
                                 double timeSeconds) {
     const Profile& profile = net.profile();
-    // Whether K or L is down this frame; see presetBankShown_.
+    // Whether K or L (or mobile R long-press) is down this frame; see
+    // presetBankShown_. Kept on loadoutPresetBank_ for the input pass.
     const int presetBank = inGame_ ? presetBankShown_ : -1;
     presetBankShown_ = -1;
+    loadoutPresetBank_ = presetBank;
     // A local edit is shown at once and dropped the moment the server agrees
     // with it -- or the deadline passes, which is how a refused one corrects
     // itself. See expectedLoadout_.
@@ -1555,7 +1601,11 @@ void MenuSystem::drawLoadoutBar(Canvas& canvas, Window& window, NetClient& net,
         // must not go on answering for clicks where it used to be, and it has
         // no selection or queued keystroke to carry into the next screen.
         loadoutHovered_ = -1;
+        loadoutPressSlot_ = -1;
+        loadoutPressSaved_ = false;
+        loadoutTooltipDelay.reset();
         loadoutGrabbable_.fill(false);
+        loadoutPresetBank_ = -1;
         selectedSecondary_ = -1;
         pendingCycle_ = 0;
         pendingSwapSlot_ = -1;
@@ -1690,20 +1740,21 @@ void MenuSystem::drawLoadoutBar(Canvas& canvas, Window& window, NetClient& net,
     for (int i = 0; i < kLoadoutBarSlots; ++i) {
         if (insideInclusive(layout.slots[static_cast<std::size_t>(i)], mouse)) hovered = i;
     }
-    // While a preset row is up, the second row's petals are hidden under it
-    // and cannot be picked up from where they are not drawn.
+    // While a preset row is up the second row's petals are hidden under the
+    // saved-loadout tiles. Those tiles stay hittable so a finger (or click)
+    // can load one; they are just not petal drag sources (see grabbable).
     const bool secondaryHidden = presetBank >= 0;
-    if (secondaryHidden && hovered >= kLoadoutBarPrimary && hovered < kLoadoutBarSlots) hovered = -1;
     if (metrics.secondaryPicker && hovered < 0 && insideInclusive(layout.trash, mouse)) {
         hovered = kLoadoutTrashSlot;
     }
     loadoutHovered_ = hovered;
-    // The browser intercepts a press on the bar only to begin a drag, so this
-    // is exactly the condition under which the click is the bar's at all.
+    // The bar owns the click for every owned slot -- empty ones included -- so
+    // a tap on an empty primary/secondary still column-swaps instead of firing
+    // an attack through the hole. Filled slots are also the drag sources.
     for (int i = 0; i < kLoadoutBarSlots; ++i) {
         const auto at = static_cast<std::size_t>(i);
         loadoutGrabbable_[at] =
-            i < owned && !shown[at].empty() && !(secondaryHidden && i >= kLoadoutBarPrimary);
+            i < owned && !(secondaryHidden && i >= kLoadoutBarPrimary);
     }
 
     canvas.save();
@@ -1977,6 +2028,34 @@ void MenuSystem::drawLoadoutBar(Canvas& canvas, Window& window, NetClient& net,
     if (layer != nullptr) endLayer(canvas, *layer, layerBox, kOverlayPlateAlpha);
     if (onTop >= 0) drawTile(canvas, inHand);
     canvas.restore();
+
+    // Petal card: same lines / dwell / ALT exacts as the inventory. Painted
+    // after the bar's slide restore so the box is not translucent-plated with
+    // the hotbar, and suppressed while a drag or press is in flight.
+    const bool pointerDown =
+        window.mouseDown(MouseButton::Left) || window.mousePressed(MouseButton::Left) ||
+        drag_.active();
+    const bool tipSlot =
+        hovered >= 0 && hovered < owned && hovered < kLoadoutBarSlots &&
+        !(secondaryHidden && hovered >= kLoadoutBarPrimary) && !shown[static_cast<std::size_t>(hovered)].empty();
+    const bool showTip =
+        tipSlot && loadoutTooltipDelay.update(hovered, timeSeconds, pointerDown);
+    if (showTip) {
+        const Profile::Slot& slot = shown[static_cast<std::size_t>(hovered)];
+        const double reloadScale =
+            profile.skills.reloadScale() *
+            (1.0 - barReloadCut(content(), [&](int i) { return profile.equipped(content(), i); }));
+        const std::vector<TooltipLine> lines =
+            petalTooltipLines(slot.petalIndex, slot.rarity, profile.skills, reloadScale);
+        const bool alt = altMode_;
+        const Vec2 size = measureTooltip(lines, 0.0, 0.0, alt);
+        // Slot boxes are laid out in screen space; the slide only moves the
+        // paint. Offset the anchor so the card tracks the drawn tile.
+        Rect anchor = loadoutRects_[static_cast<std::size_t>(hovered)];
+        anchor.y += (1.0 - loadoutSlide_) * 120.0;
+        const Vec2 at = tooltipAnchor(anchor, size, canvas.width(), canvas.height());
+        paintTooltip(canvas, at.x, at.y, lines, 0.0, 0.0, alt);
+    }
 }
 
 /// Sends a loadout edit AND shows it, which is the only way the bar reads as
@@ -2036,6 +2115,33 @@ void MenuSystem::useLoadoutSlot(NetClient& net, int slot) {
     net.usePetal(slot);
 }
 
+void MenuSystem::clickLoadoutSlot(NetClient& net, double timeSeconds, int slot) {
+    const std::vector<Profile::Slot>& shown =
+        expectedLoadout_.empty() ? net.profile().loadout : expectedLoadout_;
+    const int owned = static_cast<int>(shown.size());
+    if (slot < 0 || slot >= owned) return;
+
+    // Primary: click-to-use petals (splitter, …) still fire on click.
+    if (slot < kLoadoutBarPrimary) {
+        const auto at = static_cast<std::size_t>(slot);
+        if (!shown[at].empty() && petalIsClickToUse(content().petal(shown[at].petalIndex))) {
+            useLoadoutSlot(net, slot);
+            return;
+        }
+    }
+
+    // Primary ↔ secondary in the same column (either row), empty included —
+    // an empty primary still pulls the secondary up, and vice versa.
+    const int primary = slot < kLoadoutBarPrimary ? slot : slot - kLoadoutBarPrimary;
+    const int secondary = kLoadoutBarPrimary + primary;
+    if (primary >= owned || secondary >= owned) return;
+    if (shown[static_cast<std::size_t>(primary)].empty() &&
+        shown[static_cast<std::size_t>(secondary)].empty()) {
+        return;
+    }
+    swapLoadoutSlots(net, timeSeconds, primary, secondary);
+}
+
 void MenuSystem::updateLoadoutInput(Window& window, NetClient& net, double timeSeconds) {
     // The bar's own view of the loadout, not the profile's: a petal picked up
     // one frame after a swap was sent must be the one the player can SEE in
@@ -2044,22 +2150,80 @@ void MenuSystem::updateLoadoutInput(Window& window, NetClient& net, double timeS
         expectedLoadout_.empty() ? net.profile().loadout : expectedLoadout_;
     const int owned = static_cast<int>(shown.size());
     const int hovered = loadoutHovered_;
+    const bool mouseDown = window.mouseDown(MouseButton::Left);
 
     // Picking a petal up off the bar. Nothing is sent yet: a drag that ends
     // back where it started must not have unequipped anything on the way.
+    // An empty slot still records the press so a tap can column-swap.
+    //
+    // A press on the preset row (K/L held, or mobile R long-press) is a pick
+    // of a saved loadout, not of the petal underneath -- record it and skip
+    // the drag. Hold that tile long enough and it saves instead of loading.
     if (window.mousePressed(MouseButton::Left) && hovered >= 0 && hovered < kLoadoutBarSlots &&
         !drag_.active()) {
         const auto at = static_cast<std::size_t>(hovered);
-        if (hovered < owned && !shown[at].empty()) {
-            drag_.source = DragState::Source::LoadoutSlot;
-            drag_.petalIndex = shown[at].petalIndex;
-            drag_.rarity = shown[at].rarity;
-            drag_.slot = hovered;
+        if (loadoutPresetBank_ >= 0 && hovered >= kLoadoutBarPrimary) {
             loadoutGrabAt_ = {window.mouseX(), window.mouseY()};
+            loadoutPressSlot_ = hovered;
+            loadoutPressAt_ = timeSeconds;
+            loadoutPressSaved_ = false;
+        } else if (hovered < owned) {
+            loadoutGrabAt_ = {window.mouseX(), window.mouseY()};
+            loadoutPressSaved_ = false;
+            if (!shown[at].empty()) {
+                drag_.source = DragState::Source::LoadoutSlot;
+                drag_.petalIndex = shown[at].petalIndex;
+                drag_.rarity = shown[at].rarity;
+                drag_.slot = hovered;
+                loadoutPressSlot_ = -1;
+            } else {
+                loadoutPressSlot_ = hovered;
+            }
         }
     }
 
-    if (!window.mouseReleased(MouseButton::Left) || !drag_.active()) return;
+    // Long-press save on a preset tile: fire once while still held on it.
+    // Needs the bank still up (finger on R / K / L) and the pointer still on
+    // the same secondary slot that started the press.
+    if (loadoutPressSlot_ >= 0 && !loadoutPressSaved_ && mouseDown &&
+        loadoutPresetBank_ >= 0 && loadoutPressSlot_ >= kLoadoutBarPrimary &&
+        loadoutPressSlot_ < kLoadoutBarSlots && hovered == loadoutPressSlot_ &&
+        timeSeconds - loadoutPressAt_ >= kPresetSaveHoldSeconds) {
+        pendingPreset_ = loadoutPresetBank_ * kLoadoutPresetsPerBank +
+                         (loadoutPressSlot_ - kLoadoutBarPrimary);
+        pendingPresetSave_ = true;
+        loadoutPressSaved_ = true;
+    }
+
+    if (!window.mouseReleased(MouseButton::Left)) return;
+
+    // Tap on an empty slot: no drag was started, but the column still swaps.
+    // Tap on a preset tile: load that saved loadout -- unless a long-press
+    // already saved into it.
+    if (!drag_.active()) {
+        if (loadoutPressSaved_) {
+            loadoutPressSlot_ = -1;
+            loadoutPressSaved_ = false;
+            return;
+        }
+        if (loadoutPressSlot_ >= 0 &&
+            (Vec2{window.mouseX(), window.mouseY()} - loadoutGrabAt_).length() <=
+                kLoadoutClickSlop) {
+            if (loadoutPresetBank_ >= 0 && loadoutPressSlot_ >= kLoadoutBarPrimary &&
+                loadoutPressSlot_ < kLoadoutBarSlots) {
+                pendingPreset_ = loadoutPresetBank_ * kLoadoutPresetsPerBank +
+                                 (loadoutPressSlot_ - kLoadoutBarPrimary);
+                pendingPresetSave_ = false;
+            } else if (loadoutPressSlot_ < owned) {
+                clickLoadoutSlot(net, timeSeconds, loadoutPressSlot_);
+            }
+        }
+        loadoutPressSlot_ = -1;
+        loadoutPressSaved_ = false;
+        return;
+    }
+    loadoutPressSlot_ = -1;
+    loadoutPressSaved_ = false;
 
     // A release that has barely moved is the click it was aimed as, wherever
     // it lands. The gaps between slots are a few pixels on a phone and a
@@ -2068,7 +2232,7 @@ void MenuSystem::updateLoadoutInput(Window& window, NetClient& net, double timeS
     // next slot swapped the two.
     if (drag_.source == DragState::Source::LoadoutSlot && drag_.slot < owned &&
         (Vec2{window.mouseX(), window.mouseY()} - loadoutGrabAt_).length() <= kLoadoutClickSlop) {
-        useLoadoutSlot(net, drag_.slot);
+        clickLoadoutSlot(net, timeSeconds, drag_.slot);
         drag_.clear();
         return;
     }
@@ -2081,12 +2245,7 @@ void MenuSystem::updateLoadoutInput(Window& window, NetClient& net, double timeS
                 swapLoadoutSlots(net, timeSeconds, drag_.slot, hovered);
             } else {
                 // Picked up and put straight back down: a CLICK, not a drag.
-                // The petals that do something when they are used are used
-                // here -- the splitter swaps which of its two flowers you are
-                // steering -- which is this client's answer to the browser
-                // build's U + slot-number chord. Everything else is the same
-                // no-op it always was.
-                useLoadoutSlot(net, hovered);
+                clickLoadoutSlot(net, timeSeconds, hovered);
             }
         }
         drag_.clear();
@@ -2728,14 +2887,10 @@ void MenuSystem::render(Canvas& canvas, Window& window, NetClient& net, const Sp
     adminSlotShown_ = net.haveSession() && net.isSkinAdmin();
     accountSlotShown_ = net.haveSession();
 
-    // A guild invitation raises the guild panel over whatever was open. It is
-    // the one thing in this build that opens a menu without a click, so the
-    // flag is consumed here -- once per invitation, not once per frame it is
-    // still unanswered.
-    if (net.guildInvite().justArrived) {
-        net.guildInvite().justArrived = false;
-        if (open_ != MenuId::Guild) toggle(MenuId::Guild);
-    }
+    // Guild / squad invites raise the top-left Accept/Decline toast instead of
+    // forcing a panel open. Consume the edge so a later frame does not re-fire.
+    if (net.guildInvite().justArrived) net.guildInvite().justArrived = false;
+    if (net.squadInvite().justArrived) net.squadInvite().justArrived = false;
     // `/admin db` is answered with an Open, which raises the editor the same
     // way: once per answer, over whatever was open.
     if (net.adminDb().openRequested) {
@@ -2858,6 +3013,7 @@ void MenuSystem::render(Canvas& canvas, Window& window, NetClient& net, const Sp
     // Under the open card, which is painted next and keeps any click it is
     // standing on: the chip hangs where the corner cards do.
     drawReleaseChip(canvas, window, net);
+    drawInviteToasts(canvas, window, net);
     if (layer == PanelLayer::Over) {
         renderOpenPanel(canvas, window, net, sprites, renderer, timeSeconds, dt);
     }
@@ -2868,6 +3024,143 @@ void MenuSystem::render(Canvas& canvas, Window& window, NetClient& net, const Sp
     // on nothing.
     updateLoadoutInput(window, net, timeSeconds);
     drawDragged(canvas, window, sprites, timeSeconds);
+}
+
+void MenuSystem::drawInviteToasts(Canvas& canvas, Window& window, NetClient& net) {
+    inviteToastRects_.fill(Rect{});
+    struct Card {
+        std::string title;
+        std::string detail;
+        bool guild = false;
+    };
+    std::vector<Card> cards;
+    if (net.squadInvite().waiting && !net.squadInvite().dismissed) {
+        Card c;
+        c.title = net.squadInvite().fromGuild ? tr(Msg::SquadInviteGuild) : tr(Msg::SquadInvite);
+        char detail[128];
+        std::snprintf(detail, sizeof detail, tr(Msg::SquadInviteDetail),
+                      net.squadInvite().fromUsername.c_str());
+        c.detail = detail;
+        cards.push_back(std::move(c));
+    }
+    if (net.guildInvite().waiting && !net.guildInvite().dismissed) {
+        Card c;
+        c.guild = true;
+        c.title = tr(Msg::GuildInvite);
+        c.detail = "@" + net.guildInvite().fromUsername + " · " +
+                   net.guildInvite().displayName + " [" + net.guildInvite().guildName + "]";
+        cards.push_back(std::move(c));
+    }
+    if (cards.empty()) return;
+
+    // Roomier than the first pass: title / detail / actions need clear bands
+    // rather than three lines stacked in an 78px strip.
+    constexpr double kPadX = 16.0;
+    constexpr double kPadY = 14.0;
+    constexpr double kW = 360.0;
+    constexpr double kH = 118.0;
+    constexpr double kGap = 12.0;
+    constexpr double kBtnH = 34.0;
+    constexpr double kBtnW = 108.0;
+    constexpr double kBtnGap = 12.0;
+    constexpr double kClose = 28.0;
+    constexpr double kRadius = 10.0;
+    const Vec2 mouse{window.mouseX(), window.mouseY()};
+    const bool released = window.mouseReleased(MouseButton::Left);
+    double y = stripBottom() + (releaseRect_.h > 0 ? releaseRect_.h + 8.0 : 0.0);
+    const double x = std::max(kTopIcon.inset, reservedLeft());
+
+    for (std::size_t i = 0; i < cards.size() && i < inviteToastRects_.size(); ++i) {
+        const Card& card = cards[i];
+        const Rect box{x, y, kW, kH};
+        inviteToastRects_[i] = box;
+        const bool underPanel = panelRect_.w > 0 && panelRect_.contains(mouse);
+        const bool over = box.contains(mouse) && !underPanel;
+
+        canvas.save();
+        setFill(canvas, 0x141419u, kOverlayPlateAlpha);
+        canvas.beginPath();
+        canvas.roundRect(static_cast<float>(box.x), static_cast<float>(box.y),
+                         static_cast<float>(box.w), static_cast<float>(box.h),
+                         static_cast<float>(kRadius));
+        canvas.fill();
+        setStroke(canvas, card.guild ? 0x27DADEu : 0x4FC3F7u);
+        canvas.setLineWidth(2.5f);
+        canvas.beginPath();
+        canvas.roundRect(static_cast<float>(box.x), static_cast<float>(box.y),
+                         static_cast<float>(box.w), static_cast<float>(box.h),
+                         static_cast<float>(kRadius));
+        canvas.stroke();
+        canvas.restore();
+
+        const Rect closeBtn{box.right() - kClose - kPadX, box.y + kPadY, kClose, kClose};
+        const bool closeHover = over && closeBtn.contains(mouse);
+        canvas.save();
+        setFill(canvas, closeHover ? 0xE85D5Du : 0x3A3A42u);
+        canvas.beginPath();
+        canvas.roundRect(static_cast<float>(closeBtn.x), static_cast<float>(closeBtn.y),
+                         static_cast<float>(closeBtn.w), static_cast<float>(closeBtn.h), 6.0f);
+        canvas.fill();
+        canvas.restore();
+        TextStyle xMark;
+        xMark.size = 16.0;
+        xMark.fill = kPaper;
+        xMark.align = Align::Centre;
+        xMark.baseline = Baseline::Middle;
+        text(canvas, "×", closeBtn.x + closeBtn.w * 0.5, closeBtn.y + closeBtn.h * 0.5, xMark);
+
+        const double textLeft = box.x + kPadX;
+        const double textRight = closeBtn.x - 10.0;
+        TextStyle head;
+        head.size = 16.0;
+        head.fill = kPaper;
+        head.align = Align::Left;
+        head.baseline = Baseline::Alphabetic;
+        text(canvas, card.title, textLeft, box.y + kPadY + 18.0, head);
+        TextStyle body = head;
+        body.size = 13.0;
+        body.fill = 0xCFC3B0u;
+        text(canvas, ellipsize(card.detail, body.size, textRight - textLeft), textLeft,
+             box.y + kPadY + 42.0, body);
+
+        const Rect accept{box.x + kPadX, box.bottom() - kBtnH - kPadY, kBtnW, kBtnH};
+        const Rect decline{accept.right() + kBtnGap, accept.y, kBtnW, kBtnH};
+        const bool acceptHover = over && accept.contains(mouse);
+        const bool declineHover = over && decline.contains(mouse);
+        ButtonStyle acceptStyle;
+        acceptStyle.fill = 0x6CBF5Eu;
+        acceptStyle.textSize = 14.0;
+        acceptStyle.outlineWidth = 3.0;
+        acceptStyle.radius = 6.0;
+        ButtonStyle declineStyle = acceptStyle;
+        declineStyle.fill = 0xE85D5Du;
+        button(canvas, accept, tipAccept(), acceptHover, false, acceptStyle);
+        button(canvas, decline, tipDecline(), declineHover, false, declineStyle);
+
+        if (released && !underPanel) {
+            if (closeBtn.contains(mouse)) {
+                if (card.guild) net.guildInvite().dismissed = true;
+                else net.squadInvite().dismissed = true;
+            } else if (accept.contains(mouse)) {
+                if (card.guild) {
+                    net.requestGuildAccept();
+                    net.guildInvite() = {};
+                } else {
+                    net.sendChat("/squad-accept");
+                    net.clearSquadInvite();
+                }
+            } else if (decline.contains(mouse)) {
+                if (card.guild) {
+                    net.requestGuildDecline();
+                    net.guildInvite() = {};
+                } else {
+                    net.sendChat("/squad-decline");
+                    net.clearSquadInvite();
+                }
+            }
+        }
+        y += kH + kGap;
+    }
 }
 
 void MenuSystem::drawReleaseChip(Canvas& canvas, Window& window, NetClient& net) {
@@ -2908,6 +3201,7 @@ void MenuSystem::renderStripOnly(Canvas& canvas, Window& window, double timeSeco
     adminSlotShown_ = false;
     accountSlotShown_ = false;
     releaseRect_ = Rect{};
+    inviteToastRects_.fill(Rect{});
     drawIconStrip(canvas, window, timeSeconds);
 }
 
@@ -2929,15 +3223,17 @@ double MenuSystem::stripBottom() const {
 bool MenuSystem::capturesMouse(Vec2 mouse) const {
     if (panelRect_.w > 0 && panelRect_.contains(mouse)) return true;
     if (releaseRect_.w > 0 && releaseRect_.contains(mouse)) return true;
-    // The bar takes the click for one thing only: lifting a petal out of a
-    // filled slot. An empty slot, the trash, the gaps between the rows and the
-    // caption strip above them all fall through and fire an attack, so no
-    // bounding box around the bar answers here. Which slots are filled comes
-    // off the last paint -- only that pass has the account's loadout -- but
-    // the pointer tested against them is this one.
+    for (const Rect& toast : inviteToastRects_) {
+        if (toast.w > 0 && toast.contains(mouse)) return true;
+    }
+    // The bar takes the click for owned slots (drag / column-swap) and, while
+    // a preset bank is up, for the secondary tiles that load a saved loadout.
+    // The trash, gaps and caption strip still fall through and fire an attack.
     for (int i = 0; i < kLoadoutBarSlots; ++i) {
         const auto at = static_cast<std::size_t>(i);
-        if (loadoutGrabbable_[at] && insideInclusive(loadoutRects_[at], mouse)) return true;
+        if (!insideInclusive(loadoutRects_[at], mouse)) continue;
+        if (loadoutGrabbable_[at]) return true;
+        if (loadoutPresetBank_ >= 0 && i >= kLoadoutBarPrimary) return true;
     }
     for (const Rect& button : stripRects_) {
         if (insideInclusive(button, mouse)) return true;
