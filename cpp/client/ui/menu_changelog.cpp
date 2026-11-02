@@ -526,6 +526,14 @@ constexpr ChangelogEntry kChangelog[] = {
     {"October 30, 2026",
      {"New petal: Icosahedron",
       "Buffed Icosahedron with armor that scales with rarity"}},
+    {"2026年11月3日",
+     {"新增红宝石（Ruby）花瓣，补齐切面图标与各稀有度说明",
+      "重复电击概率随稀有度由70%提升至95%",
+      "每次放电最多追加1～4次，同一角色多颗红宝石取最强效果",
+      "垃圾、服务器怪可掉落Ruby，随机花瓣池也可获得",
+      "留言板优先使用当前角色昵称，未进场时使用登录名",
+      "留言入口对齐AshFlor图标、下方文字、字号及间距",
+      "同步移动端操作、聊天布局与中文提示修正"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));
