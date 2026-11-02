@@ -53,6 +53,9 @@ inline constexpr IconSource kMenuIcons[] = {
      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\"><g fill=\"#fff\"><path d=\"M78 64c0-26 21-48 48-48h260c27 0 48 22 48 48v248c0 26-21 48-48 48H248l-86 86v-86h-36c-27 0-48-22-48-48V64z\"></path><circle cx=\"188\" cy=\"200\" r=\"28\"></circle><circle cx=\"324\" cy=\"200\" r=\"28\"></circle><path d=\"M176 276c24 56 64 88 80 88s56-32 80-88c-28 24-56 36-80 36s-52-12-80-36z\"></path></g></svg>"},
     {"debug",
      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\"><g><ellipse cx=\"256\" cy=\"308\" rx=\"110\" ry=\"142\" fill=\"#fff\"></ellipse><circle cx=\"256\" cy=\"134\" r=\"62\" fill=\"#fff\"></circle><g stroke=\"#fff\" stroke-width=\"30\" stroke-linecap=\"round\" fill=\"none\"><path d=\"M146 244 L58 196\"></path><path d=\"M142 322 L50 322\"></path><path d=\"M154 394 L74 450\"></path><path d=\"M366 244 L454 196\"></path><path d=\"M370 322 L462 322\"></path><path d=\"M358 394 L438 450\"></path><path d=\"M218 86 L178 30\"></path><path d=\"M294 86 L334 30\"></path></g></g></svg>"},
+    // AshFlor's 32px feedback mark: rounded bubble, tail and two text lines.
+    {"feedback",
+     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-16 -16 32 32\"><g fill=\"none\" stroke=\"#fff\" stroke-width=\"2.5\"><rect x=\"-13\" y=\"-11\" width=\"26\" height=\"19\" rx=\"4\"/><path d=\"M-7 8V14L0 8M-7-4H7M-7 2H7\"/></g></svg>"},
     // The one glyph the browser build never had, because it had no admin
     // dashboard: a crown, drawn here in the same flat white the others wear.
     {"admin",

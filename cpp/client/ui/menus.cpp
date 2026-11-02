@@ -1232,7 +1232,7 @@ const std::array<MenuSystem::StripSlot, kStripSlotCount>& MenuSystem::strip() {
     using A = StripAction;
     static const std::array<StripSlot, kStripSlotCount> kSlots = {{
         // Far-left like ashflor's title-screen QQ badge.
-        {MenuId::None, A::Feedback, "notifications", true, 0x4ECB71u, 0x3EA35Au},
+        {MenuId::None, A::Feedback, "feedback", true, 0x4ECB71u, 0x3EA35Au},
         {MenuId::None,          A::Qq,       "qq",            true,  0x12B7F5u, 0x0E92C4u},
         {MenuId::Settings,      A::OpenMenu, "settings",      true,  0xB3B3B3u, 0x8F8F8Fu},
         {MenuId::Changelog,     A::OpenMenu, "changelog",     true,  0x00DB3Eu, 0x00AF32u},
@@ -1437,6 +1437,20 @@ void MenuSystem::drawIconStrip(Canvas& canvas, Window& window, double timeSecond
             glyph->renderFitted(canvas, static_cast<float>(r.x + (r.w - style.glyph) * 0.5),
                                 static_cast<float>(r.y + (r.h - style.glyph) * 0.5),
                                 static_cast<float>(style.glyph), static_cast<float>(timeSeconds));
+        }
+
+        // AshFlor's feedback caption: 11px below a 46px button, with a 4px gap.
+        if (slot.action == StripAction::Feedback) {
+            TextStyle caption;
+            caption.size = style.side * (11.0 / 46.0);
+            caption.fill = kPaper;
+            caption.stroke = kInk;
+            caption.strokeWidth = 2.0;
+            caption.roundJoin = true;
+            caption.align = Align::Centre;
+            caption.baseline = Baseline::Top;
+            text(canvas, trEnZh("Feedback", "给作者留言"), r.x + r.w * 0.5,
+                 r.bottom() + style.side * (4.0 / 46.0), caption);
         }
 
         // The hotkey, over the glyph in the corner it is least in the way of.
