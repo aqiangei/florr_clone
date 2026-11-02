@@ -534,6 +534,9 @@ constexpr ChangelogEntry kChangelog[] = {
       "留言板优先使用当前角色昵称，未进场时使用登录名",
       "留言入口对齐AshFlor图标、下方文字、字号及间距",
       "同步移动端操作、聊天布局与中文提示修正"}},
+    {"2026年11月3日（水母区）",
+     {"海洋Jellyfish区常规刷怪等级提升至S（Super）",
+      "少量ET（Eternal）沿用海洋首领冷却与数量限制"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));
