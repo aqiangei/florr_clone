@@ -209,8 +209,10 @@ void MobileControls::update(const std::vector<TouchEvent>& events, double timeSe
                 if (attack_.is(point.id)) attack_.held = false;
                 if (retract_.is(point.id)) retract_.held = false;
                 if (swap_.is(point.id)) {
-                    // A short release is the row swap; a long one only closes
-                    // the preset row (already shown while held).
+                    // A short release is the row swap (or cancels a sticky L
+                    // bank MenuSystem already armed). A long one only ends the
+                    // hold -- the sticky bank stays until a tile is picked or
+                    // R is tapped again.
                     if (!swapLong_) swapTapPending_ = true;
                     swap_.held = false;
                     swapDownAt_ = -1.0;

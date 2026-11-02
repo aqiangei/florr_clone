@@ -369,8 +369,8 @@ private:
     /// The socket is down and the screen is carrying on without it: dropped,
     /// or being redialled. What puts the banner up.
     bool connectionLost() const;
-    /// Leaves the world for the title screen: what Continue and the exit
-    /// button both do.
+    /// Leaves the world for the title screen: the red exit button (and a
+    /// kicked/replaced session). Death-card Continue respawns in place instead.
     void leaveToTitle();
     /// leaveToTitle's own half: the screen, without telling the server --
     /// for a body the server has already taken out of the world.

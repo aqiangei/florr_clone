@@ -1022,6 +1022,13 @@ private:
 
     // -- lifecycle ---------------------------------------------------------
     Entity spawnPlayer(Session&);
+    /// Continue after death: stand near `around` in `realm` (open floor via
+    /// Terrain::findOpenSpawn) instead of the title-screen door. Same body
+    /// setup as spawnPlayer once the point is chosen.
+    Entity spawnPlayerNear(Session&, Realm realm, Vec2 around);
+    /// Shared tail of spawnPlayer / spawnPlayerNear: settle realm, build body,
+    /// arm respawn protection, publish session + squad.
+    Entity finishPlayerSpawn(Session&, Realm realm, Vec2 spawn);
     /// Assembles one player body in `realm` at `position` and writes the
     /// account onto it. Everything spawnPlayer does EXCEPT choosing where to
     /// stand, settling the session's realm and starting an arena run -- which

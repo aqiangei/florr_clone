@@ -124,8 +124,9 @@ constexpr double kStarfishHealthThreshold = 75.0;
 
 /// A scripted heal is a steeper curve than a burst petal's. `stats.heal`
 /// already carries its rarity; a script's literal does not, so the reference
-/// multiplies it by sqrt(3) per tier and by a flat 3 on top of the talent.
-constexpr double kBehaviourHealScale = 3.0;
+/// multiplies it by sqrt(3) per tier. The flat player heal ×3 lives in
+/// `CombatSystem::landHeal` (kPlayerHealMultiplier), so it is not repeated here.
+constexpr double kBehaviourHealScale = 1.0;
 
 /// How close a yggdrasil has to pass to a corpse to raise it.
 constexpr double kYggdrasilRevivalRange = 80.0;
@@ -1586,6 +1587,10 @@ PetalSystem::Aggregate PetalSystem::recomputeModifiers(World& world,
             // rather than out, like the cutter above -- the flower is light
             // because of what it is wearing, not because the petal is up.
             aggregate.modifiers.knockbackTakenScale += stats.flowerKnockback;
+            aggregate.modifiers.lightningRepeatChance =
+                std::max(aggregate.modifiers.lightningRepeatChance, stats.lightningRepeatChance);
+            aggregate.modifiers.maxLightningRepeats =
+                std::max(aggregate.modifiers.maxLightningRepeats, stats.maxLightningRepeats);
             // Amulet, worn like the rubber and maximised like the lotus: a
             // second amulet is a spare, not a second share of the same heal.
             aggregate.modifiers.overhealShield =

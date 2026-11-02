@@ -171,7 +171,7 @@ inline constexpr const char* kAshflorQqInvite = "https://qm.qq.com/q/E0OG9CLIg";
 /// bottom-left one. Not every one is shown at once -- see drawIconStrip -- and
 /// three of the top row open no panel (Discord / QQ are links and exit leaves
 /// the game), so this is not `kMenuCount`.
-inline constexpr int kStripSlotCount = 17;
+inline constexpr int kStripSlotCount = 18;
 
 /// The range ClientSettings::zoom is held to, and how far one press of a zoom
 /// key moves it. The step is the browser's own ZOOM_STEP; the range is this
@@ -1537,8 +1537,10 @@ public:
     bool handleKeys(Window&);
 
     /// Mobile R button: a short tap swaps the two loadout rows; holding past
-    /// the long-press threshold opens the L preset bank on the secondary row
-    /// (florr's hold-X). Call each playing frame while touch controls are up.
+    /// the long-press threshold arms a sticky L preset bank on the secondary
+    /// row (ashflor / florr hold-X). The bank stays after release so one finger
+    /// can tap a tile to load or hold a tile to save; a later short tap on R
+    /// cancels. Call each playing frame while touch controls are up.
     void noteMobileLoadoutGestures(bool swapRowsTap, bool presetsHeld);
 
     /// True while the client is in a game, which is the only time the exit
@@ -1552,6 +1554,7 @@ public:
         if (inGame == inGame_) return;
         inGame_ = inGame;
         loadoutSlide_ = 0.0;
+        mobilePresetSticky_ = false;
         // Its button is gone in game, so a changelog still open from the title
         // screen would be a card with nothing on screen that opened it.
         if (inGame_ && open_ == MenuId::Changelog) close();
@@ -1690,7 +1693,7 @@ private:
     /// One slot of the icon strip. The strip is not a projection of MenuId:
     /// three of its buttons open no panel at all, and the order on screen is
     /// the browser's, not the enum's.
-    enum class StripAction : std::uint8_t { OpenMenu, Discord, Qq, Exit };
+    enum class StripAction : std::uint8_t { OpenMenu, Discord, Qq, Feedback, Exit };
     struct StripSlot {
         MenuId menu;
         StripAction action;
@@ -1806,6 +1809,7 @@ private:
     /// Whether the Account button is on the strip: only while there is an
     /// account to show. The login screen paints the strip and no panels.
     bool accountSlotShown_ = false;
+    std::string feedbackUsername_;
     /// The Release chip as last painted, for capturesMouse(). Empty while no
     /// control is running.
     Rect releaseRect_{};
@@ -1886,6 +1890,10 @@ private:
     /// skips -- chat open, a text field focused -- shows the loadout rather
     /// than a stale preview.
     int presetBankShown_ = -1;
+    /// Mobile R long-press keeps the L bank up after the finger lifts, so a
+    /// single thumb can tap/hold a preset tile. Cleared by a short R tap, a
+    /// completed load/save, or leaving the game bar.
+    bool mobilePresetSticky_ = false;
     /// Bank shown on the bar this frame (copy of presetBank before clear).
     /// updateLoadoutInput reads it so a tap on a secondary preset tile can
     /// load that saved loadout -- the hover pass alone cannot, because the

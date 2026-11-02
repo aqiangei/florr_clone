@@ -16,9 +16,9 @@
 //
 // Added: aim (a deflected stick aims as well as moves), and an R button that
 // stands in for Swap loadout rows -- tap swaps the two rows; a long press
-// holds the L preset bank open so the secondary slots can load a saved
-// loadout (tap a tile) or save into one (hold a tile ~0.42 s), which is
-// florr's hold-X on mobile.
+// arms the L preset bank (MenuSystem keeps it sticky after release) so one
+// finger can load a saved loadout (tap a tile) or save into one (hold a tile
+// ~0.42 s). That is ashflor / florr's hold-X on mobile.
 
 #include <cstdint>
 #include <vector>
@@ -96,7 +96,8 @@ public:
     bool consumeSwapRowsTap();
 
     /// True once R has been held past the long-press threshold and is still
-    /// down -- the L preset bank should cover the secondary row.
+    /// down -- MenuSystem arms a sticky L bank from this edge (the bank stays
+    /// after release so a single finger can pick a tile).
     bool presetsHeld() const { return swap_.held && swapLong_; }
 
     void draw(Canvas&) const;

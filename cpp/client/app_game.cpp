@@ -9,9 +9,9 @@
 //
 // Death is the other half. The card is a screen of its own (Screen::Dead)
 // rather than a dialog, because everything under it keeps running: the world
-// dims but still draws, the HUD and the panels stay at full brightness, and
-// Close leaves the player dead with the card gone -- its dim and its Enter
-// shortcut with it.
+// dims but still draws, the HUD and the panels stay at full brightness.
+// Continue requests an in-place respawn near the corpse; Close only hides the
+// card (player stays dead) -- its dim and its Enter shortcut go with it.
 
 #include "client/app.h"
 
@@ -335,9 +335,10 @@ void App::sendInputFrame(double dt) {
 }
 
 void App::updatePlaying(double dt) {
-    // Mobile R: tap swaps rows, long-press opens the L preset bank. Applied
-    // before handleKeys so a same-frame drawLoadoutBar sees the pending swap
-    // / bank the way a real R / L key would.
+    // Mobile R: tap swaps rows; long-press arms a sticky L preset bank (stays
+    // after release for one-finger load/save). Applied before handleKeys so a
+    // same-frame drawLoadoutBar sees the pending swap / bank the way a real
+    // R / L key would.
     if (touchControlsVisible()) {
         menus_.noteMobileLoadoutGestures(mobile_.consumeSwapRowsTap(),
                                          mobile_.presetsHeld());
@@ -414,7 +415,9 @@ void App::updateDead(double dt) {
     // painted, and during the slide-in that is on its way down the screen.
     const DeathCard card = deathCardLayout(window_.width(), window_.height(), deathCardSlide_);
     if (hit(card.continueBox, mouse)) {
-        leaveToTitle();
+        // AshFlor-style in-place respawn near the corpse -- not back to the
+        // title lobby. The server answers with Revived so the death card drops.
+        net_.requestRespawn();
         return;
     }
     // Close takes the card away -- it slides back up the way it came -- and

@@ -122,6 +122,25 @@ void openAshflorQqGroup() {
 #endif
 }
 
+#ifdef __EMSCRIPTEN__
+EM_JS(void, flix_open_ashflor_feedback, (const char* boardBase, const char* username), {
+    const base = UTF8ToString(boardBase);
+    const target = new URL(base);
+    target.searchParams.set("from", location.origin);
+    target.searchParams.set("name", UTF8ToString(username));
+    const opened = window.open(target.href, "_blank");
+    if (opened) opened.opener = null;
+});
+#endif
+
+void openAshflorFeedbackBoard(const std::string& username) {
+#ifdef __EMSCRIPTEN__
+    flix_open_ashflor_feedback("https://ashflor.com/feedback.html?v=prog5", username.c_str());
+#else
+    openExternalLink("https://ashflor.com/feedback.html?v=prog5&from=native");
+#endif
+}
+
 namespace {
 
 struct MenuMeta {
@@ -938,11 +957,19 @@ void MenuSystem::close() {
 }
 
 void MenuSystem::noteMobileLoadoutGestures(bool swapRowsTap, bool presetsHeld) {
-    if (!inGame_) return;
-    // Short tap = R. Long hold opens the L bank -- florr's mobile hold-X
-    // shows L1..L0 on the secondary row.
-    if (swapRowsTap) pendingRowSwap_ = true;
-    if (presetsHeld) presetBankShown_ = 1;
+    if (!inGame_) {
+        mobilePresetSticky_ = false;
+        return;
+    }
+    // Long hold arms a sticky L bank (ashflor / florr hold-X): it stays after
+    // release so one finger can tap a tile to load or hold a tile ~0.42 s to
+    // save. A later short tap on R cancels the bank instead of swapping rows.
+    if (presetsHeld) mobilePresetSticky_ = true;
+    if (swapRowsTap) {
+        if (mobilePresetSticky_) mobilePresetSticky_ = false;
+        else pendingRowSwap_ = true;
+    }
+    if (mobilePresetSticky_ || presetsHeld) presetBankShown_ = 1;
 }
 
 bool MenuSystem::handleKeys(Window& window) {
@@ -1205,6 +1232,7 @@ const std::array<MenuSystem::StripSlot, kStripSlotCount>& MenuSystem::strip() {
     using A = StripAction;
     static const std::array<StripSlot, kStripSlotCount> kSlots = {{
         // Far-left like ashflor's title-screen QQ badge.
+        {MenuId::None, A::Feedback, "notifications", true, 0x4ECB71u, 0x3EA35Au},
         {MenuId::None,          A::Qq,       "qq",            true,  0x12B7F5u, 0x0E92C4u},
         {MenuId::Settings,      A::OpenMenu, "settings",      true,  0xB3B3B3u, 0x8F8F8Fu},
         {MenuId::Changelog,     A::OpenMenu, "changelog",     true,  0x00DB3Eu, 0x00AF32u},
@@ -1235,6 +1263,7 @@ void MenuSystem::activateStripSlot(int index) {
     switch (slot.action) {
         case StripAction::Exit: exitRequested_ = true; return;
         case StripAction::Discord: openExternalLink(kDiscordInvite); return;
+        case StripAction::Feedback: openAshflorFeedbackBoard(feedbackUsername_); return;
         case StripAction::Qq: openAshflorQqGroup(); return;
         case StripAction::OpenMenu: break;
     }
@@ -1259,7 +1288,7 @@ void MenuSystem::drawIconStrip(Canvas& canvas, Window& window, double timeSecond
         if (slot.action == StripAction::Exit) visible[static_cast<std::size_t>(i)] = inGame_;
         // What changed and where to talk about it are read before a run, not
         // during one: both belong to the title screen only.
-        else if (slot.action == StripAction::Discord || slot.action == StripAction::Qq ||
+        else if (slot.action == StripAction::Feedback || slot.action == StripAction::Discord || slot.action == StripAction::Qq ||
                  slot.menu == MenuId::Changelog)
             visible[static_cast<std::size_t>(i)] = !inGame_;
         else if (slot.menu == MenuId::Debug)
@@ -1606,6 +1635,7 @@ void MenuSystem::drawLoadoutBar(Canvas& canvas, Window& window, NetClient& net,
         loadoutTooltipDelay.reset();
         loadoutGrabbable_.fill(false);
         loadoutPresetBank_ = -1;
+        mobilePresetSticky_ = false;
         selectedSecondary_ = -1;
         pendingCycle_ = 0;
         pendingSwapSlot_ = -1;
@@ -1698,6 +1728,9 @@ void MenuSystem::drawLoadoutBar(Canvas& canvas, Window& window, NetClient& net,
             expectedLoadout_.clear();
             net.loadLoadoutPreset(preset);
         }
+        // Load or save finishes the mobile R pick -- close the sticky L bank
+        // the way ashflor clears mobile_l_preset_pick after a slot tap.
+        mobilePresetSticky_ = false;
     }
 
     // The bar's box is not fixed. It moves wholesale between the two screens
@@ -2886,6 +2919,14 @@ void MenuSystem::render(Canvas& canvas, Window& window, NetClient& net, const Sp
     // account to ask: the strip draws the admin button off it.
     adminSlotShown_ = net.haveSession() && net.isSkinAdmin();
     accountSlotShown_ = net.haveSession();
+    feedbackUsername_ = net.haveSession() ? net.profile().username : "";
+    if (net.haveSession()) {
+        const auto& entities = net.view().entities();
+        const auto own = entities.find(net.view().self().netId);
+        if (own != entities.end() && !own->second.name.empty()) {
+            feedbackUsername_ = own->second.name;
+        }
+    }
 
     // Guild / squad invites raise the top-left Accept/Decline toast instead of
     // forcing a panel open. Consume the edge so a later frame does not re-fire.
@@ -3189,6 +3230,7 @@ void MenuSystem::drawReleaseChip(Canvas& canvas, Window& window, NetClient& net)
 }
 
 void MenuSystem::renderStripOnly(Canvas& canvas, Window& window, double timeSeconds) {
+    feedbackUsername_.clear();
     // The login screen has the strip and nothing else. Whatever the last
     // screen left in the panel and bar state is cleared rather than carried
     // over, or a card nobody is painting would still be swallowing clicks.

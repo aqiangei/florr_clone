@@ -587,6 +587,47 @@ bool CombatSystem::canHit(const World& world, Entity victim, Entity source, doub
 
 DamageResult CombatSystem::applyDamage(World& world, Entity victim, Entity source,
                                        double amount, double nowMillis, DamageKind kind) {
+    if (kind != DamageKind::Lightning || resolvingRuby_ || amount <= 0.0 ||
+        !world.has<MobTag>(victim) || world.has<Pet>(victim)) {
+        return applyDamageOnce(world, victim, source, amount, nowMillis, kind);
+    }
+    const Entity dealer = creditedPlayer(world, source);
+    const PlayerModifiers* modifiers = world.tryGet<PlayerModifiers>(dealer);
+    const double chance = modifiers != nullptr ? modifiers->lightningRepeatChance : 0.0;
+    const int limit = modifiers != nullptr ? std::clamp(modifiers->maxLightningRepeats, 0, 4) : 0;
+    if (chance <= 0.0 || limit == 0) {
+        return applyDamageOnce(world, victim, source, amount, nowMillis, kind);
+    }
+    // Hold the guard across the initial hit too: colony sharing and reflected
+    // damage must not multiply the repeat budget. Never retain ECS pointers
+    // across a hit, which can move both victim and dealer to new archetypes.
+    struct RepeatGuard {
+        bool& flag;
+        explicit RepeatGuard(bool& value) : flag(value) { flag = true; }
+        ~RepeatGuard() { flag = false; }
+    } guard(resolvingRuby_);
+    DamageResult result = applyDamageOnce(world, victim, source, amount, nowMillis, kind);
+    if (result.refused || result.dodged) return result;
+    for (int repeat = 0; repeat < limit && !result.killed; ++repeat) {
+        if (!rubyRng_.chance(clamp(chance, 0.0, 1.0))) break;
+        const DamageResult extra = applyDamageOnce(world, victim, source, amount, nowMillis, kind);
+        if (extra.refused || extra.dodged) break;
+        result.applied += extra.applied;
+        result.killed = extra.killed;
+        if (events_ != nullptr) {
+            const Transform* target = world.tryGet<Transform>(victim);
+            const Transform* origin = world.tryGet<Transform>(source);
+            if (target != nullptr && origin != nullptr) {
+                events_->lightning(origin->position, (target->position - origin->position).length(),
+                                   target->realm, {target->position});
+            }
+        }
+    }
+    return result;
+}
+
+DamageResult CombatSystem::applyDamageOnce(World& world, Entity victim, Entity source,
+                                           double amount, double nowMillis, DamageKind kind) {
     DamageResult result;
     // Non-finite damage reaches here from a config that multiplied a zero by
     // an infinity; it must cost a refused hit, not a NaN health bar that no
@@ -1687,6 +1728,9 @@ bool CombatSystem::healingBlocked(const World& world, Entity entity, double nowM
 void CombatSystem::landHeal(World& world, Entity entity, Health& health, double amount) {
     if (!(amount > 0.0)) return;
     const PlayerModifiers* modifiers = world.tryGet<PlayerModifiers>(entity);
+    // Flowers only: every player heal path lands here. Mob recovery uses the
+    // same entry without PlayerModifiers and stays at authored rates.
+    if (modifiers != nullptr) amount *= kPlayerHealMultiplier;
     // A worn basil grows the heal before the bar sees it, so what spills past
     // max -- and what an amulet keeps of it -- is the grown heal's overflow.
     if (modifiers != nullptr) amount *= 1.0 + modifiers->healBonus;

@@ -8,6 +8,7 @@ namespace {
 bool zh() { return language() == Language::Zh; }
 struct Pair { const char* id; const char* zh; };
 constexpr Pair kPetals[] = {
+    {"ruby", "红宝石"},
     {"action_test", "动作测试花瓣"},
     {"air", "空气"},
     {"amulet", "护符"},
@@ -286,6 +287,7 @@ constexpr Pair kMobs[] = {
     {"worker_termite", "工白蚁"},
 };
 constexpr Pair kPetalDescs[] = {
+    {"ruby", "让闪电有高概率重复击中同一个怪物。每次追加电击重新判定概率，稀有度越高，概率和次数上限越高。多颗只取最强效果。"},
     {"action_test", "用于测试动作的花瓣"},
     {"air", "字面意思的什么也没有。"},
     {"amulet", "将一定比例的溢出的治疗量转化为护盾。"},
@@ -640,6 +642,12 @@ const char* tipDamage() { return zh() ? "伤害: " : "Damage: "; }
 const char* tipBodyDamage() { return zh() ? "体伤: " : "Body Damage: "; }
 const char* tipCritDamage() { return zh() ? "暴击伤害: " : "Crit Damage: "; }
 const char* tipFlowerHealth() { return zh() ? "花朵生命: " : "Flower Health: "; }
+const char* tipHeal() { return zh() ? "治疗: " : "Heal: "; }
+const char* tipHealPerSec() { return zh() ? "治疗/秒: " : "Heal/s: "; }
+const char* tipHealBonus() { return zh() ? "治疗加成: +" : "Heal Bonus: +"; }
+const char* tipLifesteal() { return zh() ? "吸血: " : "Lifesteal: "; }
+const char* tipShield() { return zh() ? "护盾: " : "Shield: "; }
+const char* tipPoison() { return zh() ? "毒素: " : "Poison: "; }
 const char* tipHoldUpgrade() { return zh() ? "按住升级" : "HOLD to upgrade"; }
 const char* tipHoldRefund() { return zh() ? "按住退回" : "HOLD to refund"; }
 const char* tipMoreTp() { return zh() ? "升级可获得更多天赋点" : "You can acquire more TP by leveling up"; }

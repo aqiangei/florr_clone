@@ -641,6 +641,9 @@ struct PlayerModifiers {
     /// The share of every heal past max health that becomes shield: the best
     /// worn amulet's figure. Zero without one.
     double overhealShield = 0.0;
+    /// Strongest worn Ruby only; additional strikes never trigger another chain.
+    double lightningRepeatChance = 0.0;
+    int maxLightningRepeats = 0;
     /// What every heal this flower receives is scaled up by, less one: every
     /// worn basil's Heal Bonus, stacked harmonically (best + second / 2 +
     /// third / 3 ...). Zero without one.

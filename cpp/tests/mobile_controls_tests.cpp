@@ -234,7 +234,9 @@ TEST(a_long_press_on_r_opens_presets_without_swapping) {
     Fixture f;
     const Vec2 at = f.controls.swapCentre();
     f.feed({began(1, at.x, at.y)});
-    // Past the threshold while still held: presets open, no tap queued.
+    // Past the threshold while still held: presetsHeld edges true so
+    // MenuSystem can arm its sticky L bank; no row-swap tap is queued.
+    // After release presetsHeld is false -- stickiness lives in MenuSystem.
     f.feed({}, kSwapLongPressSeconds + 0.05);
     CHECK(f.controls.presetsHeld());
     CHECK(!f.controls.consumeSwapRowsTap());

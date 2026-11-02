@@ -21,6 +21,7 @@
 #include "client/ui/text_input.h"
 #include "shared/core/text.h"
 #include "shared/game/config.h"
+#include "shared/game/rarity.h"
 
 namespace flix {
 
@@ -389,6 +390,49 @@ std::vector<TooltipLine> petalTooltipLines(std::uint16_t petalIndex, Rarity rari
     }
     lines.push_back(hit);
 
+    // Burst / passive heal: field value includes kPlayerHealMultiplier (and the
+    // Healing talent for the amount the flower actually receives).
+    const double healTalent = skills.effectScale(SkillId::Healing);
+    if (stats.heal > 0.0) {
+        const double heal =
+            std::round(stats.heal * healTalent * kPlayerHealMultiplier);
+        TooltipLine line{std::string(tipHeal()) + abbreviate(heal), 12.0};
+        line.alpha = 0.56;
+        line.labelColor = kStatHeal;
+        line.altText = std::string(tipHeal()) + exactNumber(heal);
+        lines.push_back(line);
+    }
+    if (stats.passiveHealPerSecond > 0.0) {
+        const double heal =
+            std::round(stats.passiveHealPerSecond * healTalent * kPlayerHealMultiplier * 100.0) /
+            100.0;
+        TooltipLine line{std::string(tipHealPerSec()) + abbreviate(heal), 12.0};
+        line.alpha = 0.56;
+        line.labelColor = kStatHeal;
+        line.altText = std::string(tipHealPerSec()) + exactNumber(heal);
+        lines.push_back(line);
+    }
+    if (stats.shield > 0.0) {
+        const double shield = std::round(stats.shield);
+        TooltipLine line{std::string(tipShield()) + abbreviate(shield), 12.0};
+        line.alpha = 0.56;
+        line.labelColor = kStatGeneric;
+        line.altText = std::string(tipShield()) + exactNumber(shield);
+        lines.push_back(line);
+    }
+    if (stats.poisonPerSecond > 0.0) {
+        const double pps = std::round(stats.poisonPerSecond);
+        const double secs = stats.poisonDurationMillis / 1000.0;
+        const char* sep = language() == Language::Zh ? "/秒 · " : "/s · ";
+        TooltipLine line{std::string(tipPoison()) + abbreviate(pps) + sep + exactNumber(secs) + "s",
+                         12.0};
+        line.alpha = 0.56;
+        line.labelColor = kStatPoison;
+        line.altText =
+            std::string(tipPoison()) + exactNumber(pps) + sep + exactNumber(secs) + "s";
+        lines.push_back(line);
+    }
+
     // Relic. The whole petal is this one number.
     if (petalSharesFlowerDamage(config)) {
         TooltipLine bonus{std::string(tipFlowerHealth()) + "+" +
@@ -397,6 +441,20 @@ std::vector<TooltipLine> petalTooltipLines(std::uint16_t petalIndex, Rarity rari
         bonus.alpha = 0.56;
         bonus.labelColor = kStatHealth;
         lines.push_back(bonus);
+    }
+
+    if (stats.lightningRepeatChance > 0.0) {
+        const bool chinese = language() == Language::Zh;
+        TooltipLine chance{std::string(chinese ? "闪电重复命中: " : "Lightning Repeat: ") +
+                               percentNumber(stats.lightningRepeatChance) + "%", 12.0};
+        chance.alpha = 0.56;
+        chance.labelColor = kStatGeneric;
+        lines.push_back(chance);
+        TooltipLine cap{std::string(chinese ? "最多追加电击: " : "Max Extra Strikes: ") +
+                            std::to_string(stats.maxLightningRepeats), 12.0};
+        cap.alpha = 0.56;
+        cap.labelColor = kStatGeneric;
+        lines.push_back(cap);
     }
 
     // Rubber. Its price is printed beside what it buys.
@@ -418,9 +476,9 @@ std::vector<TooltipLine> petalTooltipLines(std::uint16_t petalIndex, Rarity rari
         lines.push_back(convert);
     }
 
-    // Basil. florr's own line, and the whole of what the petal does.
+    // Basil. Percentage of each heal (after kPlayerHealMultiplier), not a flat.
     if (stats.healBonus > 0.0) {
-        TooltipLine bonus{"Heal Bonus: +" + percentNumber(stats.healBonus) + "%", 12.0};
+        TooltipLine bonus{std::string(tipHealBonus()) + percentNumber(stats.healBonus) + "%", 12.0};
         bonus.alpha = 0.56;
         bonus.labelColor = kStatHeal;
         lines.push_back(bonus);
@@ -500,9 +558,11 @@ std::vector<TooltipLine> petalTooltipLines(std::uint16_t petalIndex, Rarity rari
         lines.push_back(bonus);
     }
 
-    // Fang. A fraction of what it deals, so it reads as a percentage.
+    // Fang. landHeal multiplies the stolen amount by kPlayerHealMultiplier, so
+    // the card shows the effective share of damage returned as HP.
     if (stats.lifesteal > 0.0) {
-        TooltipLine steal{"Lifesteal: " + exactNumber(stats.lifesteal * 100.0) + "%", 12.0};
+        const double pct = stats.lifesteal * 100.0 * kPlayerHealMultiplier;
+        TooltipLine steal{std::string(tipLifesteal()) + exactNumber(pct) + "%", 12.0};
         steal.alpha = 0.56;
         steal.labelColor = kStatHeal;
         lines.push_back(steal);

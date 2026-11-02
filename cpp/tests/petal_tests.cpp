@@ -79,6 +79,7 @@ const char* const kPetalsJson = R"JSON({
   "relic":    {"name":"Relic","damage":0,"health":null,"size":1,"cooldown":1,"count":0,"range":0,"fixedDirection":0,"noPhysics":true,"playerModifiers":{"maxHealth":1.1},"color":"#C7A138"},
   "champion_crown":{"name":"Champion's Crown","damage":0,"health":null,"size":1,"cooldown":1,"count":0,"range":0,"equipFlags":"Crown","noPhysics":true,"color":"#FFDC06"},
   "rubber":   {"name":"Rubber","damage":1,"health":30,"size":1.2,"cooldown":2500,"count":1,"color":"#EEEEEE"},
+  "ruby":     {"name":"Ruby","damage":8,"health":20,"size":1,"cooldown":3000,"count":1,"lightningRepeatChance":0.7,"color":"#ef3658"},
   "amulet":   {"name":"Amulet","damage":0,"health":10,"size":1,"cooldown":2000,"count":1,"defendOnly":true,"color":"#FF94C9"},
   "basil":    {"name":"Basil","damage":5,"health":15,"size":1.3,"cooldown":2500,"count":1,"defendOnly":true,"ignoresMobs":true,"color":"#319E40"},
   "disc":     {"name":"Disc","damage":0,"health":null,"size":1,"cooldown":1,"count":0,"range":0,"equipFlags":"Disc","noPhysics":true,"color":"#111111"},
@@ -2654,13 +2655,14 @@ TEST(a_burst_heal_charges_homes_consumes_and_reloads) {
 
     // Input does not gate a rose: after charging it flies home because health
     // is missing, delivers one burst, and enters its normal break cooldown.
-    CHECK_NEAR(rig.world.get<Health>(rig.player).current, 62.0, 1e-9);
+    // The healer's 12-point burst receives the server-wide healing x3.
+    CHECK_NEAR(rig.world.get<Health>(rig.player).current, 86.0, 1e-9);
     CHECK(rig.slot(0).broken);
     CHECK_EQ(rig.petals(0).size(), std::size_t(0));
 
     CHECK(rig.tickUntil([&] { return !rig.slot(0).broken; }));
     CHECK_EQ(rig.petals(0).size(), std::size_t(1));
-    CHECK(rig.tickUntil([&] { return rig.world.get<Health>(rig.player).current > 70.0; }, 50));
+    CHECK(rig.tickUntil([&] { return rig.world.get<Health>(rig.player).current > 86.0; }, 50));
 }
 
 /// The same burst, on a flower running flat out.
@@ -5511,10 +5513,11 @@ TEST(an_amulet_turns_its_tiers_share_of_overheal_into_shield) {
     ShieldState& shield = rig.world.get<ShieldState>(rig.player);
     shield.amount = 0.0;
     health.current = health.max - 10.0;
-    // Ten points fill the bar; the other fifty spill, and a fifth of it stays.
+    // Requested 60 lands as 180 (kPlayerHealMultiplier). Ten fill the bar;
+    // 170 spill; a fifth of that stays.
     CombatSystem::landHeal(rig.world, rig.player, health, 60.0);
     CHECK_NEAR(health.current, health.max, 1e-9);
-    CHECK_NEAR(shield.amount, 10.0, 1e-9);
+    CHECK_NEAR(shield.amount, 34.0, 1e-9);
     // Capped at max health, as a shell's shield is.
     CombatSystem::landHeal(rig.world, rig.player, health, health.max * 100.0);
     CHECK_NEAR(shield.amount, health.max, 1e-9);
@@ -5533,8 +5536,9 @@ TEST(a_basil_grows_every_heal_by_florrs_bonus_and_stacks_harmonically) {
     Rig rig;
     Health& health = rig.world.get<Health>(rig.player);
     health.current = health.max - 100.0;
+    // 10 × kPlayerHealMultiplier = 30.
     CombatSystem::landHeal(rig.world, rig.player, health, 10.0);
-    CHECK_NEAR(health.current, health.max - 90.0, 1e-9);
+    CHECK_NEAR(health.current, health.max - 70.0, 1e-9);
 
     rig.equip(0, "basil", Rarity::Mythic);
     rig.settleEquips();
@@ -5556,8 +5560,9 @@ TEST(a_basil_grows_every_heal_by_florrs_bonus_and_stacks_harmonically) {
     CHECK_NEAR(rig.modifiers().healBonus, 0.5 + 0.5 / 2.0 + 0.45 / 3.0, 1e-9);
     Health& grown = rig.world.get<Health>(rig.player);
     grown.current = grown.max - 100.0;
+    // 10 × 3 × 1.9 healBonus = 57.
     CombatSystem::landHeal(rig.world, rig.player, grown, 10.0);
-    CHECK_NEAR(grown.current, grown.max - 81.0, 1e-9);
+    CHECK_NEAR(grown.current, grown.max - 43.0, 1e-9);
     // Still never past max.
     CombatSystem::landHeal(rig.world, rig.player, grown, grown.max);
     CHECK_NEAR(grown.current, grown.max, 1e-9);
@@ -5573,10 +5578,10 @@ TEST(a_basil_grows_the_heal_an_amulet_keeps_the_overflow_of) {
     ShieldState& shield = rig.world.get<ShieldState>(rig.player);
     shield.amount = 0.0;
     health.current = health.max - 10.0;
-    // 40 grows to 60: ten fill the bar, fifty spill, and the amulet keeps a fifth.
+    // 40 × 3 × 1.5 basil = 180: ten fill the bar, 170 spill, amulet keeps a fifth.
     CombatSystem::landHeal(rig.world, rig.player, health, 40.0);
     CHECK_NEAR(health.current, health.max, 1e-9);
-    CHECK_NEAR(shield.amount, 10.0, 1e-9);
+    CHECK_NEAR(shield.amount, 34.0, 1e-9);
 }
 
 TEST(a_disc_resists_collisions_by_florrs_curve_and_does_not_stack) {
@@ -6035,4 +6040,23 @@ TEST(a_nearer_crown_of_another_tier_lends_its_own) {
     const PetalInstance& unique = rig.world.get<PetalInstance>(lentTo(rig, other).front());
     CHECK(unique.creditTo == rig.player);
     CHECK(unique.rarity == Rarity::Unique);
+}
+
+TEST(ruby_uses_the_strongest_active_slot_and_stops_when_unequipped) {
+    if (!contentLoaded()) return;
+    Rig rig;
+    rig.equip(0, "ruby", Rarity::Common);
+    rig.equip(1, "ruby", Rarity::Ultra);
+    rig.equip(kLoadoutActiveSlots, "ruby", Rarity::Apex);
+    rig.tick();
+    CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0.88, 1e-9);
+    CHECK_EQ(rig.modifiers().maxLightningRepeats, 3);
+    rig.unequip(1);
+    rig.tick();
+    CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0.7, 1e-9);
+    CHECK_EQ(rig.modifiers().maxLightningRepeats, 1);
+    rig.unequip(0);
+    rig.tick();
+    CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0, 1e-9);
+    CHECK_EQ(rig.modifiers().maxLightningRepeats, 0);
 }

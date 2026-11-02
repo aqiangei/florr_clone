@@ -225,6 +225,12 @@ inline double petalStrengthScale(Rarity r) {
     return petalStatScale(r) * strengthBoost(r);
 }
 
+/// Flat multiplier on every heal a flower receives -- burst petals, passive
+/// regen, fang lifesteal, scripted heals. Applied once in
+/// `CombatSystem::landHeal` (entities with `PlayerModifiers`); tooltips use
+/// the same figure so the card matches the field. Mob recovery does not.
+inline constexpr double kPlayerHealMultiplier = 3.0;
+
 /// Healing scales 3x per tier only to mythic, then sqrt(3) per tier.
 ///
 /// Healing that kept tripling would outpace every damage source in the game

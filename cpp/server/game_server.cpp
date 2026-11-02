@@ -5838,36 +5838,46 @@ void GameServer::handleRespawn(Session& session) {
     // death means the grantee keeps it while they are looking at the death
     // card, which is where the reference leaves it too.
     revokeTempAdmin(session.connection);
-    // The map the client is still drawing. A corpse keeps its realm until it
-    // is replaced, so this is what the client last heard; a session with no
-    // body has told its client nothing since the join, and is restated
-    // regardless.
-    bool corpseRealmKnown = false;
+    // Continue stands near the corpse (ashflor-style in-place respawn), not
+    // back at the title-screen door. Capture the death site before the body
+    // is removed.
+    bool corpseKnown = false;
     Realm corpseRealm = Realm::Overworld;
+    Vec2 corpsePos{};
     if (session.playing() && world_.isAlive(session.entity)) {
         Health* health = world_.tryGet<Health>(session.entity);
         if (health && health->alive()) return;   // not actually dead
         if (const Transform* corpse = world_.tryGet<Transform>(session.entity)) {
-            corpseRealmKnown = true;
+            corpseKnown = true;
             corpseRealm = corpse->realm;
+            corpsePos = corpse->position;
         }
         despawnPlayer(session, false);
     }
-    const Entity reborn = spawnPlayer(session);
-    // A flower that died in a map it teleported into comes back where its
-    // spawn choice says -- usually another map. The snapshot stream restates
-    // the body but never the realm, so the client would keep drawing the map
-    // it died on under a body standing somewhere else: the same message a
-    // pad sends, for the same reason.
+    const Entity reborn = corpseKnown ? spawnPlayerNear(session, corpseRealm, corpsePos)
+                                      : spawnPlayer(session);
+    // The snapshot stream restates the body but never the realm. If somehow
+    // there was no corpse (session already cleared) and spawnPlayer picked a
+    // different map than the client was drawing, restate the realm the same
+    // way a pad does.
     if (reborn != NULL_ENTITY) {
         const Transform* transform = world_.tryGet<Transform>(reborn);
-        if (transform != nullptr && (!corpseRealmKnown || transform->realm != corpseRealm)) {
+        if (transform != nullptr && (!corpseKnown || transform->realm != corpseRealm)) {
             sendRealmChange(session, transform->position);
         }
     }
     // A fresh arena run has a fresh kit; the same restatement the join makes.
+    // Revived is what drops the client's death card -- without it Continue
+    // would leave the player standing with the card still up (same as a
+    // yggdrasil raise that forgot to announce).
     if (net::Connection* connection = listener_.find(session.connection)) {
         sendProfile(session, *connection);
+        if (reborn != NULL_ENTITY) {
+            ByteWriter w;
+            w.u8(static_cast<std::uint8_t>(net::ServerMessage::Revived));
+            w.str("");   // self-continue; client says "You were revived."
+            connection->send(w);
+        }
     }
 }
 
@@ -5986,6 +5996,31 @@ Entity GameServer::spawnPlayer(Session& session) {
         }
     }
 
+    return finishPlayerSpawn(session, realm, spawn);
+}
+
+Entity GameServer::spawnPlayerNear(Session& session, Realm realm, Vec2 around) {
+    if (session.entity != NULL_ENTITY || session.split()) {
+        std::printf("[SESSION] %s (connection %u) still held a body at spawn; removing it\n",
+                    session.username.c_str(), static_cast<unsigned>(session.connection));
+        despawnPlayer(session, true);
+        endSplit(session, clockMillis_, false);
+    }
+
+    // Arena / maze keep their fixed entries; everywhere else stands on open
+    // floor near the death site (findOpenSpawn falls back to nearest open).
+    Vec2 spawn;
+    if (realm == Realm::Arena) {
+        spawn = kArenaSpawn;
+    } else if (realm == Realm::Maze) {
+        spawn = terrain_->findOpenSpawn(rng_, around, kMazeCellSize * 0.5, realm);
+    } else {
+        spawn = terrain_->findOpenSpawn(rng_, around, 200.0, realm);
+    }
+    return finishPlayerSpawn(session, realm, spawn);
+}
+
+Entity GameServer::finishPlayerSpawn(Session& session, Realm realm, Vec2 spawn) {
     // The realm is settled on the session BEFORE the account is applied, and
     // the arena's scratch record with it: applyAccountToEntity reads both.
     session.realm = realm;

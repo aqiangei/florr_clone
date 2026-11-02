@@ -2015,12 +2015,11 @@ void NetClient::handleRevived(ByteReader& reader) {
     dead_ = false;
     killerName_.clear();
     revived = true;
-    // Composed here for the same reason the death card composes its own line:
-    // the server sends the fact and the name, the client says it. An empty
-    // name is a reviver whose body went away in the same tick, which still
-    // deserves a line -- the player is standing and wants to know why.
-    addSystemMessage(reviverName.empty() ? std::string("You were revived.")
-                                         : "You were revived by " + reviverName + ".");
+    // Named reviver = yggdrasil (or similar). Empty name = Continue / self
+    // respawn near the corpse -- no chat spam for that everyday click.
+    if (!reviverName.empty()) {
+        addSystemMessage("You were revived by " + reviverName + ".");
+    }
 }
 
 void NetClient::handlePong(ByteReader& reader, double arrivedMillis) {

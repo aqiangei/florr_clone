@@ -772,6 +772,14 @@
     "drops": [
       {
         "type": "petal",
+        "itemType": "ruby",
+        "rarity": "common",
+        "probability": 0.06,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
+      {
+        "type": "petal",
         "itemType": "icosahedron",
         "rarity": "common",
         "probability": 0.19,
@@ -957,6 +965,14 @@
   "server": {
     "guaranteed": true,
     "drops": [
+      {
+        "type": "petal",
+        "itemType": "ruby",
+        "rarity": "common",
+        "probability": 0.1,
+        "minQuantity": 1,
+        "maxQuantity": 1
+      },
       {
         "type": "petal",
         "itemType": "capacitor",
