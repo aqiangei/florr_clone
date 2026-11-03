@@ -653,7 +653,8 @@ public:
     /// it clickable -- held, and not greyed.
     std::optional<Pick> render(
         MenuContext&, const SlotCardLayout&, const ui::PanelSkin&, bool withApex,
-        const std::function<SlotCell(std::uint16_t petalIndex, Rarity, std::uint32_t owned)>& look);
+        const std::function<SlotCell(std::uint16_t petalIndex, Rarity, std::uint32_t owned)>& look,
+        const std::string& search = {});
 
 private:
     ui::Scroller scroll_;
@@ -819,6 +820,8 @@ private:
     void animate(double dtMs);
 
     SlotGrid grid_;
+    std::string search_;
+    ui::TextFieldState searchField_;
     /// What is staged. A craft consumes five at a time; `batches` is how many
     /// fives are queued, which is what the slot badge counts.
     std::uint16_t stagedPetal_ = kNoPetal;

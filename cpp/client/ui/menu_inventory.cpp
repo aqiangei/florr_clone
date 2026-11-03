@@ -129,8 +129,7 @@ TooltipDelay tooltipDelay;
 bool matchesSearch(std::uint16_t petalIndex, const std::string& needle) {
     if (needle.empty()) return true;
     const PetalConfig& config = content().petal(petalIndex);
-    return lowerCase(titleCase(config.name)).find(needle) != std::string::npos ||
-           lowerCase(config.id).find(needle) != std::string::npos;
+    return petalMatchesSearch(config.id, config.name, needle);
 }
 
 /// Places `entries` as a centred five-column block starting at `y`, then
@@ -709,9 +708,7 @@ bool InventoryPanel::render(MenuContext& ctx) {
     text(canvas, tr(Msg::Stack), toggleBoxRect.right() + 5.0,
          toggleBoxRect.y + kToggleBoxSize * 0.5 + 1.0, toggleLabel);
 
-    // No placeholder: the browser's field is a bare white box until it is typed
-    // into, and a grey "Search" there reads as a value the filter is applying.
-    inputField(canvas, searchRect, search_, "", searchField_.focused, ctx.timeSeconds,
+    inputField(canvas, searchRect, search_, trEnZh("Search (中/EN)", "中英文搜索"), searchField_.focused, ctx.timeSeconds,
                &searchField_);
     panelClose(canvas, closeRect, closeRect.contains(mouse));
 

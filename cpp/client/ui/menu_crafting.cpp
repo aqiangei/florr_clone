@@ -52,6 +52,7 @@ namespace {
 /// One craft consumes five of a kind. The server enforces the same number; it
 /// is here so the panel can refuse a stack that cannot fill the ring.
 constexpr int kBatch = 5;
+constexpr double kSearchRowHeight = 38.0;
 
 /// The ring: five slots 60 across, 90 out from the slot's centre, the first
 /// straight up.
@@ -184,10 +185,12 @@ double cloverBonus(const Profile& profile, Rarity rarity) {
 Vec2 CraftingPanel::size(const Profile& profile) {
     // Common through unique: nothing upgrades out of apex, so there is no
     // column for it -- the same reason stage() refuses one.
-    return {slotCardWidth(false), slotCardHeight(SlotGrid::rows(profile, false))};
+    return {slotCardWidth(false),
+            std::min(700.0, slotCardHeight(SlotGrid::rows(profile, false)) + kSearchRowHeight)};
 }
 
 void CraftingPanel::reset() {
+    searchField_.blur();
     grid_.reset();
     stagedPetal_ = kNoPetal;
     batches_ = 0;
@@ -302,7 +305,7 @@ bool CraftingPanel::render(MenuContext& ctx) {
 
     animate(ctx.dt * 1000.0);
 
-    const SlotCardLayout card =
+    SlotCardLayout card =
         drawSlotCard(canvas, ctx.bounds, kCraftingSkin, menuTitle(MenuId::Crafting),
                      tr(Msg::Craft), mouse);
     const Rect panel = card.panel;
@@ -459,6 +462,22 @@ bool CraftingPanel::render(MenuContext& ctx) {
     }
 
     // --- the grid ----------------------------------------------------------
+    const Rect searchRect{card.listView.x + 17.0, card.listView.y + 4.0,
+                          card.listView.w - 34.0, 28.0};
+    inputField(canvas, searchRect, search_, trEnZh("Search petals (English / 中文)",
+               "搜索花瓣（中文 / English）"), searchField_.focused, ctx.timeSeconds, &searchField_);
+    trackTextMouse(ctx.window, searchField_, searchRect,
+                   inputFieldRun(searchRect, search_, searchField_), search_, ctx.timeSeconds);
+    if (searchField_.focused) {
+        ctx.wantsText = true;
+        TextEditOptions options;
+        options.maxBytes = 128;
+        if (editText(ctx.window, search_, searchField_, ctx.timeSeconds, options)) grid_.reset();
+        if (ctx.window.keyPressed(Key::Enter) || ctx.window.keyPressed(Key::Escape)) searchField_.blur();
+    }
+    if (searchRect.contains(mouse)) ctx.window.setCursorShape(CursorShape::Text);
+    card.listView.y += kSearchRowHeight;
+    card.listView.h = std::max(0.0, card.listView.h - kSearchRowHeight);
     const std::uint32_t held =
         static_cast<std::uint32_t>(std::max(0, batches_)) * static_cast<std::uint32_t>(kBatch);
     const std::optional<SlotGrid::Pick> hovered = grid_.render(
@@ -476,7 +495,7 @@ bool CraftingPanel::render(MenuContext& ctx) {
             // fresh account.
             if (cell.count > 1) cell.badge = "x" + stackCountText(cell.count);
             return cell;
-        });
+        }, search_);
 
     // Craft + Craft All toggle side by side, centred on the card's button
     // anchor. Craft All is a mode, not a one-shot: while on, a click on a
@@ -508,6 +527,7 @@ bool CraftingPanel::render(MenuContext& ctx) {
     fx_.drawVanishing(canvas, ctx.sprites, ctx.dt * 1000.0);
 
     // --- input -------------------------------------------------------------
+    if (ctx.pressed() && searchRect.contains(mouse)) return true;
     // Hold-repeat staging: same cadence as Absorb, in batches of five.
     if (heldPetal_ != kNoPetal) {
         const bool still = mouseDown && phase_ == Phase::Idle && hovered &&

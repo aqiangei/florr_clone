@@ -261,17 +261,24 @@ EM_JS(void, web_soft_keyboard, (int wanted), {
     Module.cppSoftUp = false;
     node.__last = ' ';
     node.__composing = false;
-    // Back to the lone space, but never mid-word: resetting under a keyboard
-    // that is composing throws its word away. Only once the space is gone, or
-    // once the box has grown long enough to be worth trimming.
+    // This is an event buffer, not the canvas field's text. Keep no committed
+    // suffix: the DOM caret and the canvas caret may be in different places.
     const settle = () => {
       if (node.__composing) return;
-      if (node.value.startsWith(' ') && node.value.length <= 64) return;
       node.value = ' ';
       node.__last = ' ';
+      node.setSelectionRange(1, 1);
     };
     node.addEventListener('compositionstart', () => { node.__composing = true; });
-    node.addEventListener('compositionend', () => { node.__composing = false; settle(); });
+    node.addEventListener('compositionend', () => {
+      node.__composing = false;
+      // Some IMEs deliver their final input after compositionend.
+      setTimeout(settle, 0);
+    });
+    node.addEventListener('beforeinput', (event) => {
+      if (!node.__composing && !event.isComposing && node.value === ' ')
+        node.setSelectionRange(1, 1);
+    });
     node.addEventListener('input', (event) => {
       const before = Array.from(node.__last);
       const after = Array.from(node.value);
@@ -280,7 +287,8 @@ EM_JS(void, web_soft_keyboard, (int wanted), {
       // A paste is the page's own paste listener's to deliver; taking it here
       // too would put it in twice. So is a character a keydown already typed,
       // should a keyboard both name the key and insert it.
-      const keyed = kind === 'insertText' && event.data === Module.cppSoftKeyed &&
+      const keyed = kind === 'insertText' && typeof Module.cppSoftKeyed === 'string' &&
+                    event.data === Module.cppSoftKeyed &&
                     performance.now() - (Module.cppSoftKeyedAt || 0) < 100;
       Module.cppSoftKeyed = null;
       if (kind !== 'insertFromPaste' && kind !== 'insertFromDrop' && !keyed) {
@@ -306,6 +314,7 @@ EM_JS(void, web_soft_keyboard, (int wanted), {
       node.value = ' ';
       node.__last = ' ';
       node.__composing = false;
+      node.setSelectionRange(1, 1);
     }
     if (document.activeElement !== node) node.focus({ preventScroll: true });
     Module.cppSoftUp = true;
@@ -1106,6 +1115,9 @@ struct Window::Impl {
       return std::find(claimed.begin(), claimed.end(), key) != claimed.end() ? EM_TRUE : EM_FALSE;
     }
     if (imeToggleKey) return EM_FALSE;
+    // Erase keys were already queued above. Letting the hidden input delete
+    // too would queue a second erase from its input listener.
+    if (impl->softKeyboardUp && (key == Key::Backspace || key == Key::Delete)) return EM_TRUE;
     // Soft keyboard up: leave letters/Space to the <input> + IME. Keep eating
     // Enter/Escape/F-keys policy below only when we need the game to own them.
     if (impl->softKeyboardUp && key != Key::Enter && key != Key::Escape && key != Key::Tab &&
