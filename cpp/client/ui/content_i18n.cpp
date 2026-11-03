@@ -9,6 +9,7 @@ bool zh() { return language() == Language::Zh; }
 struct Pair { const char* id; const char* zh; };
 constexpr Pair kPetals[] = {
     {"ruby", "红宝石"},
+    {"pyramid_map", "金字塔地图"},
     {"action_test", "动作测试花瓣"},
     {"air", "空气"},
     {"amulet", "护符"},
@@ -288,6 +289,7 @@ constexpr Pair kMobs[] = {
 };
 constexpr Pair kPetalDescs[] = {
     {"ruby", "让闪电有高概率重复击中同一个怪物。每次追加电击重新判定概率，稀有度越高，概率和次数上限越高。多颗只取最强效果。"},
+    {"pyramid_map", "金字塔地面随机出现的地图。拾取后保留在背包或花瓣栏，即可查看金字塔小地图，无需装备。每30秒补充，最多同时存在24个。"},
     {"action_test", "用于测试动作的花瓣"},
     {"air", "字面意思的什么也没有。"},
     {"amulet", "将一定比例的溢出的治疗量转化为护盾。"},

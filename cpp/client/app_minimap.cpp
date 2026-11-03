@@ -374,10 +374,11 @@ void App::drawMinimap(Canvas& canvas) {
         case Realm::Overworld:
             break;
     }
-    // A map that hides its minimap (florr's `minimap: false`) gets nothing in
-    // the corner at all: the pyramid's maze is to be found, not read.
+    // A pyramid chart works from the bag as well as from either petal bar.
     if (const MapData* map = worldMaps_.forRealm(net_.view().realm())) {
-        if (!map->showsMinimap()) return;
+        const bool chart = map->templateId() == "pyramid" &&
+                           net_.profile().ownsPetal(content().petalIndex("pyramid_map"));
+        if (!map->showsMinimap() && !chart) return;
     }
 
     const double x = canvas.width() - kMinimapSize - kMinimapPadding;

@@ -537,6 +537,11 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月3日（水母区）",
      {"海洋Jellyfish区常规刷怪等级提升至S（Super）",
       "少量ET（Eternal）沿用海洋首领冷却与数量限制"}},
+    {"2026年11月3日（金字塔地图）",
+     {"新增金字塔地图花瓣，随机出现在金字塔可行走的地面",
+      "每张金字塔地图同时放置24个，每30秒补充，地面保留10分钟",
+      "走近即可拾取，存入背包后显示金字塔小地图，无需装备",
+      "普通与转生金字塔均可拾取，地图花瓣随账号保存"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

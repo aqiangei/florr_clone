@@ -57,6 +57,18 @@ struct Profile {
     };
     std::vector<Slot> loadout;
 
+    /// Inventory excludes worn copies, so passive ownership checks both.
+    bool ownsPetal(std::uint16_t index) const {
+        if (index == 0xFFFF) return false;
+        for (const auto& stack : inventory) {
+            if (stack.petalIndex == index && stack.count > 0) return true;
+        }
+        for (const auto& slot : loadout) {
+            if (slot.petalIndex == index) return true;
+        }
+        return false;
+    }
+
     /// Bar slot `slot` as it is actually equipped -- a mimic resolved to the
     /// petal it copies, by the server's own rule (resolveEquippedPetal).
     EquippedPetal equipped(const ContentRegistry& registry, int slot) const {

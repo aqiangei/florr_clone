@@ -906,6 +906,7 @@ void GameServer::tick(double nowMillis) {
     runSystems(nowMillis, smoothedDeltaSeconds_);
     persistBossClocks();
     serviceSacrificeSpawn(nowMillis);
+    pyramidMapPickups_.run(world_, worldMaps_, *terrain_, *spawning_, *loot_, content(), nowMillis);
     serviceSacrificeRituals(nowMillis);
 
     // BEFORE the reaper. A splitter gives one connection two bodies, and a

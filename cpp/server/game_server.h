@@ -24,6 +24,7 @@
 #include "server/replication.h"
 #include "server/session.h"
 #include "server/squads.h"
+#include "server/systems/map_pickups.h"
 #include "shared/core/world.h"
 #include "shared/game/components.h"
 #include "shared/game/map_elements.h"
@@ -1757,6 +1758,7 @@ private:
     double savedSacrificeReadyMillis_ = -1.0;
     /// The sacrifice lying on the ground, if one is.
     Entity sacrificeDrop_ = NULL_ENTITY;
+    PyramidMapPickups pyramidMapPickups_;
     /// The sacrifice clock's and placement's own stream, so dealing a wait
     /// never moves what rng_ hands every other spawn.
     Rng sacrificeRng_;

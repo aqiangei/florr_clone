@@ -1376,7 +1376,7 @@ inline constexpr int kCrownMaxLoans = 25;
 /// player could otherwise reach it through has to leave out: the shop, the
 /// `random` drop rows, and the gallery's mirror of them.
 inline bool petalHasOwnSource(const PetalConfig& config) {
-    return petalIsSacrifice(config) || petalLendsBasic(config);
+    return petalIsSacrifice(config) || petalLendsBasic(config) || config.id == "pyramid_map";
 }
 
 /// Whether the world hands this petal out at this tier: at or above its
