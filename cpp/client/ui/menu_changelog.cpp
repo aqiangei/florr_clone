@@ -548,6 +548,9 @@ constexpr ChangelogEntry kChangelog[] = {
       "金字塔深区基础S概率约46%～61%，法老单体区约76%",
       "水母区保持此前全S配置，不随本次深区调整降低等级",
       "ET等首领仍沿用原有冷却和数量限制"}},
+    {"2026年11月3日（水母区下调）",
+     {"水母区较最初配置提升，调整为以U为主、约37%基础S的混合刷怪",
+      "保留电脑、下水道和金字塔的深区提升"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));
