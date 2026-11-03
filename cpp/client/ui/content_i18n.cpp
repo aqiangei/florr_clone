@@ -530,7 +530,9 @@ const char* skillTr(SkillId id, int tier) {
 const char* petalNameTr(const std::string& id, const char* fallback) {
     return lookup(kPetals, sizeof(kPetals) / sizeof(kPetals[0]), id, fallback);
 }
-bool petalMatchesSearch(const std::string& id, const std::string& name, const std::string& query) {
+static bool matchesContentSearch(const Pair* names, std::size_t count,
+                                 const std::string& id, const std::string& name,
+                                 const std::string& query) {
     const auto fold = [](std::string text) {
         for (char& c : text) if (static_cast<unsigned char>(c) < 128)
             c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -541,9 +543,15 @@ bool petalMatchesSearch(const std::string& id, const std::string& name, const st
     const std::string needle = fold(query.substr(begin, query.find_last_not_of(" \t\r\n") - begin + 1));
     if (fold(id).find(needle) != std::string::npos || fold(name).find(needle) != std::string::npos)
         return true;
-    for (const Pair& petal : kPetals)
-        if (id == petal.id) return std::string(petal.zh).find(needle) != std::string::npos;
+    for (std::size_t i = 0; i < count; ++i)
+        if (id == names[i].id) return std::string(names[i].zh).find(needle) != std::string::npos;
     return false;
+}
+bool petalMatchesSearch(const std::string& id, const std::string& name, const std::string& query) {
+    return matchesContentSearch(kPetals, sizeof(kPetals) / sizeof(kPetals[0]), id, name, query);
+}
+bool mobMatchesSearch(const std::string& id, const std::string& name, const std::string& query) {
+    return matchesContentSearch(kMobs, sizeof(kMobs) / sizeof(kMobs[0]), id, name, query);
 }
 const char* mobNameTr(const std::string& id, const char* fallback) {
     return lookup(kMobs, sizeof(kMobs) / sizeof(kMobs[0]), id, fallback);

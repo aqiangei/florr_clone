@@ -14,6 +14,7 @@ const char* rarityTr(Rarity r);
 const char* skillTr(SkillId id, int tier = 0);
 const char* petalNameTr(const std::string& id, const char* fallback);
 bool petalMatchesSearch(const std::string& id, const std::string& name, const std::string& query);
+bool mobMatchesSearch(const std::string& id, const std::string& name, const std::string& query);
 const char* petalDescTr(const std::string& id, const char* fallback);
 const char* mobNameTr(const std::string& id, const char* fallback);
 const char* mobDescTr(const std::string& id, const char* fallback);

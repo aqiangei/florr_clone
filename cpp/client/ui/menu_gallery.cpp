@@ -53,7 +53,8 @@ constexpr double kScrollbarWidth = 12.0;
 constexpr double kThumbWidth = 8.0;
 
 /// Where the scrollable content starts, measured down from the card's top.
-constexpr double kContentTop = kPad + kTitleHeight + kTitleGap;
+constexpr double kSearchRowHeight = 38.0;
+constexpr double kContentTop = kPad + kTitleHeight + kTitleGap + kSearchRowHeight;
 
 /// The card is a fixed size however big the window is. It is a corner overlay
 /// now -- pinned under the top icon row rather than standing beside the icon
@@ -563,9 +564,8 @@ double GalleryPanel::preferredWidth() { return kCardWidth; }
 double GalleryPanel::preferredHeight() { return kCardHeight; }
 
 void GalleryPanel::reset() {
-    // Deliberately empty. The browser panel's scroll offset is a member that
-    // toggling never touches, so reopening the bestiary returns the player to
-    // the row they were reading rather than to the bees.
+    // Keep the query and scroll position when reopening, but release typing.
+    searchField_.blur();
 }
 
 bool GalleryPanel::render(MenuContext& ctx) {
@@ -590,6 +590,26 @@ bool GalleryPanel::render(MenuContext& ctx) {
     const Rect closeRect = closeButtonRect(panel);
     panelClose(canvas, closeRect, closeRect.contains(mouse));
 
+    const Rect searchRect{panel.x + kPad, panel.y + kContentTop - kSearchRowHeight,
+                          panel.w - kPad * 2.0, 28.0};
+    inputField(canvas, searchRect, search_, trEnZh("Search mobs (English / 中文 / ID)",
+               "搜索怪物（中文 / English / ID）"), searchField_.focused, ctx.timeSeconds, &searchField_);
+    if (!(ctx.pressed() && closeRect.contains(mouse))) {
+        trackTextMouse(ctx.window, searchField_, searchRect,
+                       inputFieldRun(searchRect, search_, searchField_), search_, ctx.timeSeconds);
+    }
+    if (searchField_.focused) {
+        ctx.wantsText = true;
+        TextEditOptions typing;
+        typing.maxBytes = 128;
+        if (editText(ctx.window, search_, searchField_, ctx.timeSeconds, typing)) {
+            scroll_.offset = 0.0;
+            scrollDrag().active = false;
+        }
+        if (ctx.window.keyPressed(Key::Enter) || ctx.window.keyPressed(Key::Escape)) searchField_.blur();
+    }
+    if (searchRect.contains(mouse)) ctx.window.setCursorShape(CursorShape::Text);
+
     // --- layout ------------------------------------------------------------
     const double contentTop = panel.y + kContentTop;
     const Rect view{panel.x + kPad, contentTop, panel.w - kPad * 2 - kScrollbarWidth - 4.0,
@@ -602,6 +622,8 @@ bool GalleryPanel::render(MenuContext& ctx) {
     double y = kContentTop;
     // Declaration order, not index order: the registry's indices are sorted.
     for (const std::uint16_t mobIndex : mobRows().order) {
+        const MobConfig& mob = content().mob(mobIndex);
+        if (!mobMatchesSearch(mob.id, mob.name, search_)) continue;
         for (int tier = 0; tier < kTierColumns; ++tier) {
             const Rarity rarity = clampRarity(tier);
             Cell cell;
@@ -641,7 +663,7 @@ bool GalleryPanel::render(MenuContext& ctx) {
         // groove drags at the same rate the thumb moves.
         scroll_.offset = drag.startOffset +
                          (mouse.y - drag.startY) * (maxScroll / std::max(1.0, view.h));
-    } else if (overPanel) {
+    } else if (overPanel && mouse.y >= view.y) {
         // The wheel delta the browser reports is about 100px a notch, and its
         // sign is inverted against SDL's.
         scroll_.offset -= ctx.wheel() * 100.0;
@@ -747,6 +769,12 @@ bool GalleryPanel::render(MenuContext& ctx) {
     }
     canvas.restore();
 
+    if (cells.empty()) {
+        TextStyle empty = galleryStyle(16.0, kPaper);
+        empty.align = Align::Centre;
+        text(canvas, trEnZh("No matching mobs", "没有匹配的怪物"),
+             view.x + view.w * 0.5, view.y + 30.0, empty);
+    }
     if (maxScroll > 0) {
         galleryScrollbar(canvas, trackRect, contentHeight, scroll_.offset, maxScroll);
     }

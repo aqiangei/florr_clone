@@ -567,6 +567,9 @@ constexpr ChangelogEntry kChangelog[] = {
      {"满血S怪不再占用顶部首领血条，受伤后仍保留战斗血量提示",
       "顶部血条改为紧凑样式，最多两条，小屏幕最多一条，ET/Apex优先",
       "玩家自身及怪物身下的战斗血条照常保留"}},
+    {"2026年11月3日（图鉴搜索）",
+     {"图鉴新增怪物搜索，支持中文名、英文名及ID，与界面语言无关",
+      "输入即筛选，保留击杀解锁与掉落提示，清空搜索可恢复完整列表"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

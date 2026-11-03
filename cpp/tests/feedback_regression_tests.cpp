@@ -20,6 +20,23 @@ TEST(feedback_search_accepts_both_languages_in_either_ui_language) {
     ui::setLanguage(previous);
 }
 
+TEST(feedback_search_gallery_matches_chinese_english_and_ids_in_both_languages) {
+    const auto previous = ui::language();
+    for (auto lang : {ui::Language::En, ui::Language::Zh}) {
+        ui::setLanguage(lang);
+        CHECK(ui::mobMatchesSearch("server", "Server", "服务器"));
+        CHECK(ui::mobMatchesSearch("server", "Server", " SERVER "));
+        CHECK(ui::mobMatchesSearch("jellyfish", "Jellyfish", "水母"));
+        CHECK(ui::mobMatchesSearch("jellyfish", "Jellyfish", "JELLY"));
+        CHECK(ui::mobMatchesSearch("baby_ant", "Baby Ant", "baby_ant"));
+        CHECK(ui::mobMatchesSearch("future_mob", "Future Mob", "future"));
+        CHECK(ui::mobMatchesSearch("server", "Server", "\t "));
+        CHECK(!ui::mobMatchesSearch("server", "Server", "水母"));
+        CHECK(!ui::mobMatchesSearch("jellyfish", "Jellyfish", "not-a-mob"));
+    }
+    ui::setLanguage(previous);
+}
+
 TEST(feedback_splitter_halves_keep_full_body_clearance_near_either_wall_face) {
     Terrain terrain;
     for (int y = 0; y < terrain.tileRows(); ++y) terrain.setTile(10, y, Tile::Solid);

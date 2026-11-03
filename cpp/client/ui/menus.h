@@ -1200,6 +1200,8 @@ public:
 
 private:
     ui::Scroller scroll_;
+    std::string search_;
+    ui::TextFieldState searchField_;
 };
 
 /// The talent tree.
