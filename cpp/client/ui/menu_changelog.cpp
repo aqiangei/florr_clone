@@ -563,6 +563,10 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月3日（瞄准箭头）",
      {"修复快速移动、点击鼠标时花朵移动/瞄准箭头随机跳转的问题",
       "真实鼠标事件保留原始坐标，脚本事件防护保持启用"}},
+    {"2026年11月3日（精简血条）",
+     {"满血S怪不再占用顶部首领血条，受伤后仍保留战斗血量提示",
+      "顶部血条改为紧凑样式，最多两条，小屏幕最多一条，ET/Apex优先",
+      "玩家自身及怪物身下的战斗血条照常保留"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

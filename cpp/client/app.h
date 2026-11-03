@@ -281,8 +281,8 @@ private:
     void drawDarkness(Canvas&);
     /// How dark that vignette should be this frame, 0 to 1, before easing.
     double lowHealthTarget() const;
-    /// The screen-top health bars a super, unique or apex mob in view gets,
-    /// one under the other, name above each. Ultras are not bosses: they wear
+    /// Compact screen-top bars for injured supers and unique/apex mobs in view,
+    /// at most two rows (one on small screens). Ultras wear
     /// the ordinary bar under the body like every other mob. Returns the y
     /// under the last row, or 0 when there are none.
     double drawBossBars(Canvas&, bool altHeld);
