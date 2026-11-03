@@ -560,6 +560,9 @@ constexpr ChangelogEntry kChangelog[] = {
      {"背包和合成新增中英双语花瓣搜索，可按中文名、英文名或ID查找",
       "修复输入框在中间插入文字重复尾部、退格偶尔删除两次的问题",
       "分裂器落位改用完整身体碰撞路径，避免贴墙分裂后被怪物挤进墙内"}},
+    {"2026年11月3日（瞄准箭头）",
+     {"修复快速移动、点击鼠标时花朵移动/瞄准箭头随机跳转的问题",
+      "真实鼠标事件保留原始坐标，脚本事件防护保持启用"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

@@ -810,10 +810,8 @@ struct Window::Impl {
     impl->mouseY = static_cast<float>(targetY) * toDesign;
   }
 
-  // The input guard's pointer rule (see input_guard.h): a mouse sample the
-  // pointer physics does not believe is moved to a random point on the
-  // canvas, in the same CSS pixels the event's own coordinates are in. That
-  // sample only; the next is judged on its own.
+  // Motion heuristics remain diagnostic. Trusted device events keep their
+  // coordinates, including fast/coalesced moves and their press/release.
   PointerPhysics pointerPhysics;
 
   void randomPoint(double& targetX, double& targetY) const {
@@ -832,13 +830,14 @@ struct Window::Impl {
     sample.sinceFrameMillis = emscripten_get_now() - lastFrameMillis;
     sample.scripted = !eventTrusted;
     pointerPhysics.setBounds(pointWidth, pointHeight);
-    if (!pointerPhysics.judge(sample)) randomPoint(targetX, targetY);
+    pointerPhysics.judge(sample);
+    if (shouldDisguisePointer(inputGuard, eventTrusted)) randomPoint(targetX, targetY);
   }
 
   // Touch has no physics to judge -- a finger lands wherever it lands -- so
   // only the browser's word is taken: a contact a script made is moved.
   void disguiseIfScripted(double& targetX, double& targetY) const {
-    if (!inputGuard || eventTrusted) return;
+    if (!shouldDisguisePointer(inputGuard, eventTrusted)) return;
     randomPoint(targetX, targetY);
   }
 
@@ -977,11 +976,9 @@ struct Window::Impl {
   static EM_BOOL onClick(int type, const EmscriptenMouseEvent* event, void* userData) {
     Impl* impl = implOf(userData);
     const float toDesign = impl->fit > 0 ? static_cast<float>(1.0 / impl->fit) : 1.0f;
-    // The click follows the mouseup it came from, which the pointer physics
-    // has already judged; it is not a sample of its own.
+    // Apply the same trust policy as movement, press, release and touch.
     double targetX = event->targetX, targetY = event->targetY;
-    if (impl->inputGuard &&
-        (!impl->eventTrusted || !impl->pointerPhysics.lastBelieved())) {
+    if (shouldDisguisePointer(impl->inputGuard, impl->eventTrusted)) {
       impl->randomPoint(targetX, targetY);
     }
     const float x = static_cast<float>(targetX) * toDesign;
