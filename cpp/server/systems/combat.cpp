@@ -2499,6 +2499,8 @@ void CombatSystem::resolveMelee(World& world, const SpatialGrid& grid, double no
                                           world.has<Health>(victim) &&
                                           canDamage(world, source.attacker, victim);
             if (mobTouchesPlayer) {
+                const auto* worn = world.tryGet<PlayerModifiers>(victim);
+                const bool phase = source.isMobBody && worn && worn->passThroughMobs;
                 // resolvePlayerMobContact() breaks after its first collision:
                 // one flower wedged in a pile takes one hit/bump per tick, not
                 // a full stack. Preserve that rule across C++'s source-first
@@ -2513,14 +2515,14 @@ void CombatSystem::resolveMelee(World& world, const SpatialGrid& grid, double no
                 // -- a ladybug shoved across the map by a flower leaning on it.
                 if (firstBump) {
                     mobContactedPlayers_.push_back(victim);
-                    bounceOffMob(world, terrain, victim, source.attacker, source.givesWay, offset,
+                    if (!phase) bounceOffMob(world, terrain, victim, source.attacker, source.givesWay, offset,
                                  source.radius + body->radius - offset.length());
                 }
                 // Every mob touching the flower recoils, the one-bump rule
                 // notwithstanding: that rule stops a pile stacking shoves on
                 // the FLOWER, and each mob in the pile still hit it.
-                if (source.gardnRecoil) recoilOffFlower(world, source.attacker, victim, offset);
-                if (source.yieldsToFlower) {
+                if (!phase && source.gardnRecoil) recoilOffFlower(world, source.attacker, victim, offset);
+                if (!phase && source.yieldsToFlower) {
                     yieldToFlower(world, terrain, source.attacker, victim, offset,
                                   source.radius + body->radius - offset.length());
                 }

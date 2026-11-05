@@ -597,6 +597,7 @@ struct PlayerModifiers {
     /// Published here rather than recomputed at each impact so that the
     /// level-up path can rebuild the same figure the petal pass wrote.
     double bodyDamageBonus = 0.0;
+    bool passThroughMobs = false;
     double sizeScale = 1.0;
     double luck = 1.0;          ///< TypeScript's neutral luck value
     double magnetism = 0.0;     ///< adds to pickup radius

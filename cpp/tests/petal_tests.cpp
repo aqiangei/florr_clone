@@ -79,6 +79,7 @@ const char* const kPetalsJson = R"JSON({
   "relic":    {"name":"Relic","damage":0,"health":null,"size":1,"cooldown":1,"count":0,"range":0,"fixedDirection":0,"noPhysics":true,"playerModifiers":{"maxHealth":1.1},"color":"#C7A138"},
   "champion_crown":{"name":"Champion's Crown","damage":0,"health":null,"size":1,"cooldown":1,"count":0,"range":0,"equipFlags":"Crown","noPhysics":true,"color":"#FFDC06"},
   "rubber":   {"name":"Rubber","damage":1,"health":30,"size":1.2,"cooldown":2500,"count":1,"color":"#EEEEEE"},
+  "cutter": {"name":"Cutter","damage":0,"health":null,"size":1,"cooldown":1,"count":0,"noPhysics":true},
   "ruby":     {"name":"Ruby","damage":8,"health":20,"size":1,"cooldown":3000,"count":1,"lightningRepeatChance":0.7,"color":"#ef3658"},
   "amulet":   {"name":"Amulet","damage":0,"health":10,"size":1,"cooldown":2000,"count":1,"defendOnly":true,"color":"#FF94C9"},
   "basil":    {"name":"Basil","damage":5,"health":15,"size":1.3,"cooldown":2500,"count":1,"defendOnly":true,"ignoresMobs":true,"color":"#319E40"},
@@ -6059,4 +6060,15 @@ TEST(ruby_uses_the_strongest_active_slot_and_stops_when_unequipped) {
     rig.tick();
     CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0, 1e-9);
     CHECK_EQ(rig.modifiers().maxLightningRepeats, 0);
+}
+
+TEST(cutter_only_active_equipment_removes_mob_separation) {
+    Rig rig;
+    rig.equip(0, "cutter", Rarity::Common);
+    rig.tick();
+    CHECK(rig.modifiers().passThroughMobs);
+    rig.unequip(0);
+    rig.equip(kLoadoutActiveSlots, "cutter", Rarity::Common);
+    rig.tick();
+    CHECK(!rig.modifiers().passThroughMobs);
 }

@@ -578,6 +578,9 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月5日（掉落平衡）",
      {"普通怪掉落概率与主掉落品质升级概率各提高原值的15%，最高100%",
       "保持掉落数量、稀有度上限与额外低阶掉落规则不变"}},
+    {"2026年11月5日（Cutter与水母区）",
+     {"装备Cutter可与怪物重叠，不再互相挤开；接触伤害与墙壁碰撞保留",
+      "水母区新增一个Apex名额，海洋最多同时两只，其余区域仍为一只"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

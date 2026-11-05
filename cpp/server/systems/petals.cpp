@@ -1496,6 +1496,8 @@ PetalSystem::Aggregate PetalSystem::recomputeModifiers(World& world,
                 // Equipment is worn for the whole loadout, including while a
                 // petal is reloading; this is the same rule as tickBroadcast.
                 equipFlags |= registry.petal(equipped.configIndex).equipFlags;
+                if (registry.petal(equipped.configIndex).id == "cutter")
+                    aggregate.modifiers.passThroughMobs = true;
             }
             // TypeScript derives modifiers from equipped loadout entries, not
             // from their onCooldown flag. A broken body leaves a ring gap but

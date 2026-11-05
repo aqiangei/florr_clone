@@ -4177,3 +4177,20 @@ TEST(rubber_scales_the_knockback_its_flower_takes) {
     CHECK_NEAR(a.world.get<Knockback>(rubbery).impulse.x,
                2.5 * a.world.get<Knockback>(plain).impulse.x, 1e-9);
 }
+
+TEST(cutter_overlap_keeps_contact_damage_without_separation) {
+    const auto& f = recoilFixture();
+    CHECK(f.ok);
+    if (!f.ok) return;
+    Arena a;
+    const Entity mob = a.mob({1000, 1000}, 100, 0, 30);
+    a.world.add<MobType>(mob, MobType{f.walker, Rarity::Common, 1.0});
+    a.world.add<ContactDamage>(mob, ContactDamage{5, kMobHitIntervalMillis});
+    const Entity player = a.player({1010, 1000});
+    a.world.add<PlayerModifiers>(player).passThroughMobs = true;
+    a.step(1000, f.registry);
+    CHECK(a.world.get<Health>(player).current < 100);
+    CHECK_NEAR(a.world.get<Transform>(player).position.x, 1010, 1e-9);
+    CHECK_NEAR(a.world.get<Motion>(player).velocity.lengthSq(), 0, 1e-9);
+    CHECK_NEAR(a.world.get<Motion>(mob).velocity.lengthSq(), 0, 1e-9);
+}

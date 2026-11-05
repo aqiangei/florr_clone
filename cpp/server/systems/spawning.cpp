@@ -1569,6 +1569,8 @@ void SpawnSystem::rebuildZones(const ContentRegistry& content) {
                                    map.id().c_str(), row.name.c_str());
                 }
                 zone.resolved.push_back(resolved);
+                if (map.id() == "ocean" && row.name == "jellyfish" && row.weight > 0)
+                    zone.extraApex = true;
             }
             if (element.isMobRegion()) {
                 // A region owns no population, so none of the bookkeeping
@@ -1723,7 +1725,7 @@ Rarity SpawnSystem::rollBossUpgrade(World& world, const SpawnZone& zone, double 
     // already standing in the biome does not draw either: it stays ready, and
     // the first super after that one dies gets the roll.
     const auto rolls = [&](double readyMillis, Rarity tier) {
-        return nowMillis >= readyMillis && !topBossTaken(world, tier, zone.realm) &&
+        return nowMillis >= readyMillis && !topBossTaken(world, tier, zone.realm, tier == Rarity::Apex && zone.extraApex ? 2 : 1) &&
                bossRng_.chance(tier == Rarity::Apex ? kApexUpgradeChance : kBossUpgradeChance);
     };
     if (rolls(clock.apexReadyMillis, Rarity::Apex)) return Rarity::Apex;
@@ -1764,15 +1766,15 @@ std::uint32_t SpawnSystem::biomeKey(Realm realm) const {
     return slot != kInvalidIndex ? slot : 0x10000u + static_cast<std::uint32_t>(realmIndex(realm));
 }
 
-bool SpawnSystem::topBossTaken(World& world, Rarity rarity, Realm realm) {
+bool SpawnSystem::topBossTaken(World& world, Rarity rarity, Realm realm, int limit) {
     const std::uint32_t key = biomeKey(realm);
-    bool taken = false;
+    int count = 0;
     ambient_->each([&](Entity e, MobTag&, Transform& transform, Body&, MobType& type,
                        AmbientMob&) {
-        if (taken || type.rarity != rarity || !isWholeAnimal(world, e)) return;
-        taken = isWorldRealm(transform.realm) && biomeKey(transform.realm) == key;
+        if (type.rarity != rarity || !isWholeAnimal(world, e)) return;
+        if (isWorldRealm(transform.realm) && biomeKey(transform.realm) == key) ++count;
     });
-    return taken;
+    return count >= limit;
 }
 
 void SpawnSystem::noteStandingBosses(World& world, const CommandBuffer& commands) {
@@ -1822,11 +1824,19 @@ void SpawnSystem::cullExtraTopBosses(World& world, CommandBuffer& commands) {
         return a.order < b.order;
     });
     culled_.clear();
+    int count = 1;
     for (std::size_t i = 1; i < topBosses_.size(); ++i) {
         const TopBoss& first = topBosses_[i - 1];
         const TopBoss& extra = topBosses_[i];
         if (extra.biome == first.biome && extra.rarity == first.rarity) {
-            culled_.push_back(extra.entity);
+            ++count;
+            const bool extraSlot = extra.rarity == Rarity::Apex &&
+                std::any_of(zones_.begin(), zones_.end(), [&](const SpawnZone& z) {
+                    return z.extraApex && !z.prestige && z.biome == extra.biome;
+                });
+            if (count > (extraSlot ? 2 : 1)) culled_.push_back(extra.entity);
+        } else {
+            count = 1;
         }
     }
     if (culled_.empty()) return;

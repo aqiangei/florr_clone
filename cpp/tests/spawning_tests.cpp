@@ -5626,3 +5626,24 @@ TEST(a_neverambient_mob_never_comes_from_a_group_roll_however_hard_the_ground) {
         }
     }
 }
+
+TEST(jellyfish_zone_keeps_two_apex_but_other_zones_keep_one) {
+    for (bool jelly : {false, true}) {
+        SuperBand world;
+        const auto& b = world.band;
+        const auto path = writeTiledFixture("cutter_apex_ocean.tmj",
+            fixtureMapBody(bandObject(1, b.x, b.y, b.w, b.h, 200, jelly ? "jellyfish" : "bee")));
+        MapData map;
+        map.setId("ocean");
+        std::string error;
+        CHECK(map.loadTiled(path, error));
+        world.maps.adoptSingle(map);
+        world.deal();
+        onlyClock(world.sim).apexReadyMillis = 0;
+        world.fill();
+        CHECK_EQ(mobsOfRarity(world.sim.world, Rarity::Apex), jelly ? 2 : 1);
+        world.fill();
+        CHECK_EQ(mobsOfRarity(world.sim.world, Rarity::Apex), jelly ? 2 : 1);
+        std::remove(path.c_str());
+    }
+}

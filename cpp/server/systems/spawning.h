@@ -736,6 +736,7 @@ private:
         /// than handing the slot back where it fell. See MapElement::singular:
         /// the shape is one creature's range, not a patch of ground.
         bool singular = false;
+        bool extraApex = false;
         /// Index into bossClocks_: the biome of the map this band is drawn on.
         /// kInvalidIndex on a prestige twin, which keeps no clock.
         std::uint16_t biome = kInvalidIndex;
@@ -888,7 +889,7 @@ private:
     /// True when a live wild `rarity` animal already stands anywhere in
     /// `realm`'s biome. Walks the live population, which is fine: it is only
     /// asked when a clock is ready and a super was just rolled.
-    bool topBossTaken(World& world, Rarity rarity, Realm realm);
+    bool topBossTaken(World& world, Rarity rarity, Realm realm, int limit = 1);
 
     /// Despawns every unique or apex that is not the FIRST of its tier in its
     /// biome, with its body if it has one. Destroyed, not killed: no loot and
