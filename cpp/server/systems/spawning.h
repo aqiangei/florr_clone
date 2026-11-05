@@ -370,6 +370,7 @@ inline constexpr double kUniqueSpawnCooldownMillis = 20.0 * 60.0 * 1000.0;
 // next upgrade may place another immediately (cooldown was 2h upstream).
 inline constexpr double kApexSpawnCooldownMillis = 0.0;
 inline constexpr double kBossUpgradeChance = 0.10;
+inline constexpr double kApexUpgradeChance = 0.20;
 
 /// The sacrifice (petalIsSacrifice): what a flower that dies wearing one
 /// summons, and where it will not.

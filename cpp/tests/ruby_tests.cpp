@@ -65,7 +65,7 @@ TEST(ruby_only_repeats_lightning_from_its_wearer_against_hostile_mobs) {
 TEST(ruby_common_repeat_probability_is_high_but_not_guaranteed) {
     RubyArena arena;
     auto& mods = arena.world.get<PlayerModifiers>(arena.player);
-    mods.lightningRepeatChance = 0.7;
+    mods.lightningRepeatChance = 0.8;
     mods.maxLightningRepeats = 1;
     int repeats = 0;
     for (int i = 0; i < 1000; ++i) {
@@ -73,8 +73,8 @@ TEST(ruby_common_repeat_probability_is_high_but_not_guaranteed) {
         CHECK(applied == 1 || applied == 2);
         repeats += applied == 2;
     }
-    CHECK(repeats > 620);
-    CHECK(repeats < 780);
+    CHECK(repeats > 730);
+    CHECK(repeats < 870);
 }
 
 TEST(ruby_rarity_stats_and_fixed_and_random_drops_are_available) {
@@ -89,10 +89,10 @@ TEST(ruby_rarity_stats_and_fixed_and_random_drops_are_available) {
         CHECK(stats.health > 0);
         CHECK(stats.lightningRepeatChance >= previous);
         CHECK(stats.lightningRepeatChance <= 0.95);
-        CHECK_EQ(stats.maxLightningRepeats, 1 + tier / 3);
+        CHECK_EQ(stats.maxLightningRepeats, 2 + tier / 3);
         previous = stats.lightningRepeatChance;
     }
-    CHECK_NEAR(registry.petalStats(ruby, Rarity::Common).lightningRepeatChance, 0.7, 1e-9);
+    CHECK_NEAR(registry.petalStats(ruby, Rarity::Common).lightningRepeatChance, 0.8, 1e-9);
     CHECK_NEAR(registry.petalStats(ruby, Rarity::Apex).lightningRepeatChance, 0.95, 1e-9);
     CHECK(!registry.petal(ruby).image.empty());
     DropTables drops;
@@ -108,5 +108,24 @@ TEST(ruby_rarity_stats_and_fixed_and_random_drops_are_available) {
     bool random = false;
     for (auto index : drops.droppablePetals()) random = random || index == ruby;
     CHECK(random);
+}
+TEST(ruby_buff_supports_five_extra_hits_and_cutter_has_two_sources) {
+    RubyArena arena;
+    auto& mods = arena.world.get<PlayerModifiers>(arena.player);
+    mods.lightningRepeatChance = 1;
+    mods.maxLightningRepeats = 5;
+    CHECK_NEAR(arena.hit().applied, 60, 1e-9);
+    const auto& registry = testsupport::shippedContent();
+    const auto cutter = registry.petalIndex("cutter");
+    CHECK(cutter != kInvalidIndex);
+    DropTables drops;
+    std::string error;
+    CHECK(drops.load(registry, testsupport::dataFile("mob_drops.json"), error));
+    for (const char* mob : {"server", "digger"}) {
+        bool found = false;
+        for (const auto& row : drops.forMob(registry.mobIndex(mob)))
+            found = found || row.petalIndex == cutter;
+        CHECK(found);
+    }
 }
 } // namespace

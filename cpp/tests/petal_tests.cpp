@@ -6050,11 +6050,11 @@ TEST(ruby_uses_the_strongest_active_slot_and_stops_when_unequipped) {
     rig.equip(kLoadoutActiveSlots, "ruby", Rarity::Apex);
     rig.tick();
     CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0.88, 1e-9);
-    CHECK_EQ(rig.modifiers().maxLightningRepeats, 3);
+    CHECK_EQ(rig.modifiers().maxLightningRepeats, 4);
     rig.unequip(1);
     rig.tick();
     CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0.7, 1e-9);
-    CHECK_EQ(rig.modifiers().maxLightningRepeats, 1);
+    CHECK_EQ(rig.modifiers().maxLightningRepeats, 2);
     rig.unequip(0);
     rig.tick();
     CHECK_NEAR(rig.modifiers().lightningRepeatChance, 0, 1e-9);

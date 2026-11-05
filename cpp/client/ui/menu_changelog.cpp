@@ -570,6 +570,11 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月3日（图鉴搜索）",
      {"图鉴新增怪物搜索，支持中文名、英文名及ID，与界面语言无关",
       "输入即筛选，保留击杀解锁与掉落提示，清空搜索可恢复完整列表"}},
+    {"2026年11月5日（玩家反馈修复）",
+     {"修复原地复活可能穿墙的问题，按实际身体大小沿可通行路径落点",
+      "Apex自然升级概率由10%提高到20%，仍限制每个区域最多一只",
+      "服务器怪物新增Cutter掉落，保留Digger原有掉落",
+      "Ruby重复电击概率提升为80%至95%，额外电击上限提升为2至5次"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

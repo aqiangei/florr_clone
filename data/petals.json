@@ -1922,7 +1922,7 @@
         "description": "Lightning has a high chance to strike the same mob again. Each extra strike rolls separately, up to the rarity limit. Only the strongest equipped Ruby applies.",
         "color": "#ef3658",
         "count": 1,
-        "lightningRepeatChance": 0.7,
+        "lightningRepeatChance": 0.8,
         "image": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"-16 -16 32 32\"><path d=\"M-7-13H7L13-7V7L7 13H-7L-13 7V-7Z\" fill=\"#e82d54\" stroke=\"#98213f\" stroke-width=\"2.5\" stroke-linejoin=\"round\"/><path d=\"M-7-13 0-6 7-13 6 0 13-7 13 7 6 0 7 13 0 6-7 13-6 0-13 7-13-7-6 0Z\" fill=\"#c71d49\"/><path d=\"M0-6 6 0 0 6-6 0Z\" fill=\"#ff6b82\"/><path d=\"M-7-13H7L0-6-6 0-13-7Z\" fill=\"#ff8ca0\"/><path d=\"M0-6 6 0 0 6-6 0Z\" fill=\"none\" stroke=\"#f49bad\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg>"
     },
     "pyramid_map": {

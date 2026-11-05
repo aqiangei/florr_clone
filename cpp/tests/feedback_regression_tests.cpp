@@ -2,8 +2,28 @@
 #include "client/ui/content_i18n.h"
 #include "client/ui/i18n.h"
 #include "server/splitter_placement.h"
+#include "server/respawn_placement.h"
 
 using namespace flix;
+
+TEST(feedback_respawn_does_not_cross_box_walls) {
+    Terrain terrain;
+    for (int y = 0; y < terrain.tileRows(); ++y) terrain.setTile(10, y, Tile::Solid);
+    Rng rng{5182};
+    for (double radius : {24.0, 48.0, 100.0}) {
+        for (bool left : {false, true}) {
+            const double edge = (left ? 10.0 : 11.0) * kTileSize;
+            const Vec2 corpse{edge + (left ? -radius - 1 : radius + 1), 20.5 * kTileSize};
+            for (int i = 0; i < 500; ++i) {
+                const Vec2 p = respawnPosition(terrain, rng, Realm::Overworld, corpse, radius, 200);
+                CHECK(!terrain.blocked(p, Realm::Overworld));
+                CHECK(!terrain.segmentBlocked(corpse, p, Realm::Overworld));
+                CHECK_NEAR(distanceSq(p, terrain.resolveCircle(p, radius, Realm::Overworld)), 0, 0.001);
+                CHECK(left ? p.x <= edge - radius + 0.001 : p.x >= edge + radius - 0.001);
+            }
+        }
+    }
+}
 
 TEST(feedback_search_accepts_both_languages_in_either_ui_language) {
     const auto previous = ui::language();

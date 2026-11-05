@@ -1724,7 +1724,7 @@ Rarity SpawnSystem::rollBossUpgrade(World& world, const SpawnZone& zone, double 
     // the first super after that one dies gets the roll.
     const auto rolls = [&](double readyMillis, Rarity tier) {
         return nowMillis >= readyMillis && !topBossTaken(world, tier, zone.realm) &&
-               bossRng_.chance(kBossUpgradeChance);
+               bossRng_.chance(tier == Rarity::Apex ? kApexUpgradeChance : kBossUpgradeChance);
     };
     if (rolls(clock.apexReadyMillis, Rarity::Apex)) return Rarity::Apex;
     if (rolls(clock.uniqueReadyMillis, Rarity::Unique)) return Rarity::Unique;

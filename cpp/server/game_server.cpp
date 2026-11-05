@@ -1,4 +1,5 @@
 #include "server/game_server.h"
+#include "server/respawn_placement.h"
 
 #include "shared/core/process_stats.h"
 
@@ -6008,17 +6009,15 @@ Entity GameServer::spawnPlayerNear(Session& session, Realm realm, Vec2 around) {
         endSplit(session, clockMillis_, false);
     }
 
-    // Arena / maze keep their fixed entries; everywhere else stands on open
-    // floor near the death site (findOpenSpawn falls back to nearest open).
-    Vec2 spawn;
-    if (realm == Realm::Arena) {
-        spawn = kArenaSpawn;
-    } else if (realm == Realm::Maze) {
-        spawn = terrain_->findOpenSpawn(rng_, around, kMazeCellSize * 0.5, realm);
-    } else {
-        spawn = terrain_->findOpenSpawn(rng_, around, 200.0, realm);
+    const Entity entity = finishPlayerSpawn(session, realm, around);
+    if (entity != NULL_ENTITY) {
+        auto& transform = world_.get<Transform>(entity);
+        const double radius = world_.get<Body>(entity).radius;
+        transform.position = realm == Realm::Arena ? kArenaSpawn
+            : respawnPosition(*terrain_, rng_, realm, around, radius,
+                              realm == Realm::Maze ? kMazeCellSize * 0.5 : 200.0);
     }
-    return finishPlayerSpawn(session, realm, spawn);
+    return entity;
 }
 
 Entity GameServer::finishPlayerSpawn(Session& session, Realm realm, Vec2 spawn) {
