@@ -575,6 +575,9 @@ constexpr ChangelogEntry kChangelog[] = {
       "Apex自然升级概率由10%提高到20%，仍限制每个区域最多一只",
       "服务器怪物新增Cutter掉落，保留Digger原有掉落",
       "Ruby重复电击概率提升为80%至95%，额外电击上限提升为2至5次"}},
+    {"2026年11月5日（掉落平衡）",
+     {"普通怪掉落概率与主掉落品质升级概率各提高原值的15%，最高100%",
+      "保持掉落数量、稀有度上限与额外低阶掉落规则不变"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

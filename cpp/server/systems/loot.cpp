@@ -285,7 +285,7 @@ Rarity LootSystem::chaffDropRarity(Rarity mobRarity) {
 Rarity LootSystem::finishDropRarity(Rarity baseRarity, Rarity mobRarity, Rng& rng) {
     Rarity base = baseRarity;
     const double upgrade =
-        clamp(dropUpgradeChance(base) * dropUpgradeMultiplier(mobRarity), 0.0, 1.0);
+        clamp(dropUpgradeChance(base) * dropUpgradeMultiplier(mobRarity) * 1.15, 0.0, 1.0);
     if (rng.chance(upgrade)) {
         base = upgradeRarity(base);
     } else if (rng.chance(dropDowngradeChance(base))) {
@@ -711,7 +711,7 @@ void LootSystem::rollTable(const std::vector<DropTables::Entry>& table, Rarity m
     // nothing at all.
     if (mobRarity == Rarity::Common) {
         for (const DropTables::Entry& entry : table) {
-            if (rng.chance(entry.probability)) selected_.push_back(&entry);
+            if (rng.chance(clamp(entry.probability * 1.15, 0.0, 1.0))) selected_.push_back(&entry);
         }
         return;
     }

@@ -3293,7 +3293,8 @@ TEST(drop_rarity_applies_mob_floors_and_the_apex_item_cap) {
     }
 }
 
-TEST(a_mob_leaves_its_own_rarity_at_the_pre_guaranteed_drop_rate) {
+TEST(a_mob_leaves_its_own_rarity_at_the_balanced_drop_rate) {
+    // Expectations below are the original rates, multiplied by the 15% buff.
     // The whole point of the split. Guaranteed drops multiplied what a kill
     // pays out; grading exactly one row keeps the rate that decides how fast
     // anyone climbs the ladder at what it was before they existed. The
@@ -3316,7 +3317,7 @@ TEST(a_mob_leaves_its_own_rarity_at_the_pre_guaranteed_drop_rate) {
         for (int i = 0; i < kRuns; ++i) {
             if (LootSystem::rollDropRarity(Rarity::Common, c.mob, rng) == c.mob) ++own;
         }
-        CHECK_NEAR(own / double(kRuns), c.ownTier, std::max(0.0005, c.ownTier * 0.05));
+        CHECK_NEAR(own / double(kRuns), c.ownTier * 1.15, std::max(0.0005, c.ownTier * 0.05));
     }
 
     // Apex is the one tier that cannot leave its own rarity at all.
@@ -3338,7 +3339,7 @@ TEST(an_uncommon_mob_upgrades_its_common_rows_at_twice_the_base_chance) {
             ++uncommon;
         }
     }
-    CHECK_NEAR(uncommon / double(kRuns), 0.64 / 3.0 * 2.0, 0.005);
+    CHECK_NEAR(uncommon / double(kRuns), 0.64 / 3.0 * 2.0 * 1.15, 0.005);
 }
 
 TEST(chaff_is_flat_two_tiers_below_the_mob) {
