@@ -584,6 +584,9 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月6日（木桩与稀有怪刷新）",
      {"装备Cutter后可进入训练木桩内部测试DPS",
       "魔法萤火虫与金色叶虫的自然刷新权重各提高50%"}},
+    {"2026年11月6日（垃圾堆外观）",
+     {"修复垃圾堆移动时碎片反复换样的问题",
+      "Apex垃圾堆使用更紧凑的碎片布局，减少巨型花瓣遮挡"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

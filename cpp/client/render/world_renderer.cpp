@@ -3347,31 +3347,32 @@ const std::vector<std::uint16_t>& WorldRenderer::droppablePetals() const {
     return droppablePetals_;
 }
 
-void WorldRenderer::drawGarbagePile(Canvas& canvas, Vec2 at, double baseSize,
+void WorldRenderer::drawGarbagePile(Canvas& canvas, const MobDraw& mob, double diameter,
                                     double timeSeconds) const {
     const std::vector<std::uint16_t>& eligible = droppablePetals();
     if (eligible.empty() || !sprites_ || !content_) return;
 
-    // Seeded on where the pile stands, so every client builds the same pile out
-    // of the same petals without a byte of it crossing the wire.
-    const long long seed = static_cast<long long>(std::floor(at.x * 1000.0 + at.y * 1000.0));
-    const int count = 5 + static_cast<int>(((seed % 5) + 5) % 5);
+    // The pile moves as one body. A position seed would rebuild its petals
+    // whenever movement, knockback or interpolation changed the coordinates.
+    Rng layout(mob.netId);
+    const bool apex = mob.rarity == Rarity::Apex;
+    const int count = apex ? 9 : layout.rangeInt(5, 9);
+    const double bearing = layout.angle();
     for (int i = 0; i < count; ++i) {
-        const long long petalSeed = ((seed + i * 1000LL) % 1000000LL + 1000000LL) % 1000000LL;
-        const std::size_t pick = static_cast<std::size_t>(
-            static_cast<double>(petalSeed) / 1000000.0 * static_cast<double>(eligible.size()));
-        const std::uint16_t index = eligible[std::min(pick, eligible.size() - 1)];
-
-        const double angle = static_cast<double>(i) / count * kTau;
-        const double maxRadius = (baseSize * 0.5) * 0.8;
-        const double radius = maxRadius * (0.7 + static_cast<double>(petalSeed % 300) / 1000.0);
-        const double x = std::cos(angle) * radius;
-        const double y = std::sin(angle) * radius + (i % 3) * 3.0;
-        const double rotation = static_cast<double>(petalSeed % 360) * kPi / 180.0;
+        const std::uint16_t index = eligible[layout.below(
+            static_cast<std::uint32_t>(eligible.size()))];
         const PetalConfig& config = content_->petal(index);
-        const double size = baseSize * (0.6 + static_cast<double>(petalSeed % 200) / 1000.0) *
-                            config.size * petalArtScale(&config);
-        sprites_->drawPetal(canvas, index, Rarity::Common, x, y, size, rotation, timeSeconds);
+
+        const bool centre = apex && i == count - 1;
+        const double angle = bearing + i * kTau / (apex ? count - 1 : count);
+        const double radius = centre ? 0.0 : diameter *
+            (apex ? layout.range(0.23, 0.29) : layout.range(0.28, 0.40));
+        const double size = apex
+            ? diameter * clamp(0.39 * config.size * petalArtScale(&config), 0.28, 0.49)
+            : diameter * layout.range(0.6, 0.8) * config.size * petalArtScale(&config);
+        const double rotation = layout.angle();
+        sprites_->drawPetal(canvas, index, Rarity::Common, std::cos(angle) * radius,
+                            std::sin(angle) * radius, size, rotation, apex ? 0.0 : timeSeconds);
     }
 }
 
@@ -3583,13 +3584,11 @@ void WorldRenderer::drawMobBody(Canvas& canvas, const Camera& camera, const MobD
     static const std::string kNoId;
     const std::string& id = config ? config->id : kNoId;
     if (id == "garbage") {
-        // Its entry in mobs.json is an empty document: the pile IS the artwork,
-        // laid out in world units off the mob's COLLISION size -- the browser
-        // build sizes the pile from that and never from the death scale.
+        // The pile fades on death without the usual size expansion.
         canvas.save();
         canvas.translate(static_cast<float>(art.x), static_cast<float>(art.y));
         canvas.scale(static_cast<float>(mirrored ? -zoom : zoom), static_cast<float>(zoom));
-        drawGarbagePile(canvas, mob.position, mob.radius * 2.0, timeSeconds);
+        drawGarbagePile(canvas, mob, mob.radius * 2.0, timeSeconds);
         canvas.restore();
     } else if (id == "digger") {
         // A flower carrying a cutter rather than a bug, the way gardn draws it.
