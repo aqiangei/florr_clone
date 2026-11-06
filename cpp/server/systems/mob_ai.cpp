@@ -821,7 +821,7 @@ void MobAiSystem::stampAttack(World& world, Entity self, MobAi& ai, double nowMi
     ++stats_.attacks;
 }
 
-void MobAiSystem::fireVolley(World& world, Entity shooter, const MobType& type, MobAi& ai,
+void MobAiSystem::fireVolley(World& world, const Terrain& terrain, Entity shooter, const MobType& type, MobAi& ai,
                              const Drive& drive, Vec2 from, double aimAngle,
                              Vec2 shooterVelocity, double nowMillis, CommandBuffer& commands) {
     const ContentRegistry& registry = content();
@@ -1018,7 +1018,10 @@ void MobAiSystem::fireVolley(World& world, Entity shooter, const MobType& type, 
             kProjectileMaxRecoil,
             kProjectileRecoilScale * count *
                 projectilePush(projectileMass(shot.radius), speed, mass));
-        if (kick > 0.0) transform->position -= Vec2::fromAngle(aimAngle, kick);
+        if (kick > 0.0) {
+            stepCollide(terrain, transform->realm, transform->position,
+                        Vec2::fromAngle(aimAngle, -kick), kMobWallRadius, 1.0, true, true);
+        }
     }
 }
 
@@ -1526,7 +1529,7 @@ bool MobAiSystem::steerAggressive(World& world, const Terrain& terrain, const Sp
     if (ai.recoverPerSecond > 0.0 || ai.fleeing) {
         return fleeTarget(world, transform, ai, chaseSpeed, desired);
     }
-    return pursueTarget(world, self, type, transform, body, ai, drive, chaseSpeed, nowMillis, dt,
+    return pursueTarget(world, terrain, self, type, transform, body, ai, drive, chaseSpeed, nowMillis, dt,
                         desired, facing, commands);
 }
 
@@ -1547,7 +1550,7 @@ bool MobAiSystem::fleeTarget(World& world, const Transform& transform, MobAi& ai
     return true;
 }
 
-bool MobAiSystem::pursueTarget(World& world, Entity self, const MobType& type,
+bool MobAiSystem::pursueTarget(World& world, const Terrain& terrain, Entity self, const MobType& type,
                                const Transform& transform, const Body& body, MobAi& ai,
                                const Drive& drive, double chaseSpeed, double nowMillis, double dt,
                                Vec2& desired, Vec2& facing, CommandBuffer& commands) {
@@ -1648,7 +1651,7 @@ bool MobAiSystem::pursueTarget(World& world, Entity self, const MobType& type,
         // like anything else and starts the wind-up once in range.
         if (!shotCanReach(gap, drive.shotReach, threatRadius)) return true;
         if (!drive.stingerShooter) {
-            fireVolley(world, self, type, ai, drive, transform.position, bearing, travel,
+            fireVolley(world, terrain, self, type, ai, drive, transform.position, bearing, travel,
                        nowMillis, commands);
             return true;
         }
@@ -1673,13 +1676,13 @@ bool MobAiSystem::pursueTarget(World& world, Entity self, const MobType& type,
         // any of the swing -- the client eases a mob's facing rather than
         // replaying it -- and the mob would read as shooting out of its face
         // after all.
-        facing = stingerVolley(world, self, type, ai, drive, transform, bearing, travel,
+        facing = stingerVolley(world, terrain, self, type, ai, drive, transform, bearing, travel,
                                nowMillis, dt, commands);
     }
     return true;
 }
 
-Vec2 MobAiSystem::stingerVolley(World& world, Entity self, const MobType& type, MobAi& ai,
+Vec2 MobAiSystem::stingerVolley(World& world, const Terrain& terrain, Entity self, const MobType& type, MobAi& ai,
                                 const Drive& drive, const Transform& transform, double bearing,
                                 Vec2 travel, double nowMillis, double dt,
                                 CommandBuffer& commands) {
@@ -1715,7 +1718,7 @@ Vec2 MobAiSystem::stingerVolley(World& world, Entity self, const MobType& type, 
     // fireVolley re-checks the cooldown, so a mob that comes round early
     // simply holds the pose until its volley is due.
     if (winding && stingerAimed(bearing, transform.angle)) {
-        fireVolley(world, self, type, ai, drive, transform.position, bearing, travel,
+        fireVolley(world, terrain, self, type, ai, drive, transform.position, bearing, travel,
                    nowMillis, commands);
     }
     return facing;
@@ -1999,7 +2002,7 @@ Vec2 MobAiSystem::steerSandstormPet(World& world, const Terrain& terrain, Transf
     return Vec2{0, 0};
 }
 
-Vec2 MobAiSystem::volleyInPlace(World& world, Entity self, const MobType& type, MobAi& ai,
+Vec2 MobAiSystem::volleyInPlace(World& world, const Terrain& terrain, Entity self, const MobType& type, MobAi& ai,
                                 const Drive& drive, const Transform& transform, Vec2 travel,
                                 double nowMillis, double dt, CommandBuffer& commands) {
     if (ai.target == NULL_ENTITY) return Vec2{0, 0};
@@ -2010,12 +2013,12 @@ Vec2 MobAiSystem::volleyInPlace(World& world, Entity self, const MobType& type, 
     const double preyRadius = preyBody != nullptr ? preyBody->radius : 0.0;
     if (!shotCanReach(toPrey.length(), drive.shotReach, preyRadius)) return Vec2{0, 0};
     if (!drive.stingerShooter) {
-        fireVolley(world, self, type, ai, drive, transform.position, toPrey.angle(), travel,
+        fireVolley(world, terrain, self, type, ai, drive, transform.position, toPrey.angle(), travel,
                    nowMillis, commands);
         return Vec2{0, 0};
     }
     if (toPrey.lengthSq() <= kDirectionEpsilonSq) return Vec2{0, 0};
-    return stingerVolley(world, self, type, ai, drive, transform, toPrey.angle(), travel,
+    return stingerVolley(world, terrain, self, type, ai, drive, transform, toPrey.angle(), travel,
                          nowMillis, dt, commands);
 }
 
@@ -2102,7 +2105,7 @@ void MobAiSystem::steerPet(World& world, const Terrain& terrain, const SpatialGr
         motion.velocity = desired;
         if (desired.lengthSq() > kDirectionEpsilonSq) facing = desired;
         // It still shoots what wanders into range, the way a wild one does.
-        const Vec2 aim = volleyInPlace(world, self, type, ai, drive, transform, motion.velocity,
+        const Vec2 aim = volleyInPlace(world, terrain, self, type, ai, drive, transform, motion.velocity,
                                        nowMillis, dt, commands);
         if (aim.lengthSq() > kDirectionEpsilonSq) facing = aim;
         transform.angle =
@@ -2148,7 +2151,7 @@ void MobAiSystem::steerPet(World& world, const Terrain& terrain, const SpatialGr
             passive->state = PassiveState::Idle;
             passive->stateStartMillis = nowMillis;
         }
-        facing = volleyInPlace(world, self, type, ai, drive, transform, motion.velocity,
+        facing = volleyInPlace(world, terrain, self, type, ai, drive, transform, motion.velocity,
                                nowMillis, dt, commands);
         const bool aimed = facing.lengthSq() > kDirectionEpsilonSq;
         const Vec2 heading = desired.lengthSq() > kDirectionEpsilonSq ? desired : motion.velocity;
@@ -2181,7 +2184,7 @@ void MobAiSystem::steerPet(World& world, const Terrain& terrain, const SpatialGr
             if (ai.fleeing) {
                 driven = fleeTarget(world, transform, ai, chaseSpeed, desired);
             } else if (ai.target != NULL_ENTITY) {
-                driven = pursueTarget(world, self, type, transform, body, ai, drive, chaseSpeed,
+                driven = pursueTarget(world, terrain, self, type, transform, body, ai, drive, chaseSpeed,
                                       nowMillis, dt, desired, facing, commands);
             } else {
                 ai.crabPhase = CrabPhase::None;
@@ -2395,9 +2398,13 @@ void MobAiSystem::placeFollower(World& world, const Terrain& terrain, Entity sel
                                : Vec2::fromAngle(leader->angle + kPi);
 
     // A segment lives in its leader's space, whatever it was born into.
+    const Vec2 desired = terrain.resolveCircle(leader->position + direction * spacing,
+                                               kMobWallRadius, leader->realm);
+    const bool crossesWall = transform->realm == leader->realm &&
+        !terrain.blocked(transform->position, leader->realm) &&
+        terrain.segmentBlocked(transform->position, desired, leader->realm);
+    const Vec2 placed = crossesWall ? transform->position : desired;
     transform->realm = leader->realm;
-    const Vec2 placed = terrain.resolveCircle(leader->position + direction * spacing,
-                                              kMobWallRadius, leader->realm);
     transform->position = placed;
     // The follower is carried, not driven. Leaving a velocity on it would have
     // the movement phase integrate it a second time this tick.

@@ -264,13 +264,15 @@ StepOutcome stepCollide(const Terrain& terrain, Realm realm, Vec2& position, Vec
         // the arena has nothing to cross. Same geometry, same physics,
         // whichever realm id the map was loaded into.
         if (refuseWallCrossing && collideTerrain && isWorldRealm(realm)
-            && distanceSq(got, want) > kContactEpsilon * kContactEpsilon
+            && distanceSq(from, got) > kContactEpsilon * kContactEpsilon
             // A centre already inside a blocking tile is exempt: the
             // resolver's output is its only way out, arbitrary as the
             // direction may be.
             && !terrain.blocked(from, realm)
-            && centerPathCrossesWall(terrain, from, got, realm)) {
-            // The ejection would carry the centre across solid. Refuse it and
+            && (distanceSq(got, want) > kContactEpsilon * kContactEpsilon
+                    ? centerPathCrossesWall(terrain, from, got, realm)
+                    : terrain.segmentTouchesBlockingTile(from, got, 0.0, realm))) {
+            // The step would carry the centre across solid. Refuse it and
             // end the tick's movement where this substep started.
             out.blocked = true;
             break;
@@ -733,7 +735,7 @@ void MovementSystem::moveMobs(World& world, const Terrain& terrain,
 
         const Vec2 attempted = velocity * envScale;
         const StepOutcome out = stepCollide(terrain, transform.realm, transform.position, attempted,
-                                            kMobWallRadius, dt);
+                                            kMobWallRadius, dt, true, true);
 
         // No friction is applied here: the AI phase owns a mob's velocity --
         // published raw, or carried under gardn's friction or the drift
@@ -1125,7 +1127,7 @@ void MovementSystem::separateMobs(World& world, const Terrain& terrain) {
         // point is allowed to plunge into a thin wall in one substep.
         Vec2 position = entry.position;
         stepCollide(terrain, entry.realm, position, entry.push.clampedLength(cap), kMobWallRadius,
-                    1.0);
+                    1.0, true, true);
         transform->position = position;
     }
 }

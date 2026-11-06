@@ -227,7 +227,7 @@ void NpcSystem::run(World& world, const Terrain& terrain, const ContentRegistry&
             // point cannot plunge through a thin wall in one go.
             const Vec2 from = transform.position;
             stepCollide(terrain, transform.realm, transform.position, velocity, kMobWallRadius,
-                        net::kTickSeconds);
+                        net::kTickSeconds, true, true);
             // Its eye is on where it is GOING -- the step it actually took, so
             // one sliding along a wall looks along the wall -- and nowhere
             // else, flowers or no flowers. Held on the last bearing through a

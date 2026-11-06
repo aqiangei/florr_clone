@@ -590,6 +590,9 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月6日（天赋搜索）",
      {"天赋树支持中英文搜索，自动定位并突出显示匹配天赋",
       "按回车或点击下一个可在匹配分支之间切换"}},
+    {"2026年11月6日（生物穿墙修复）",
+     {"怪物移动、碰撞挤开与射击后坐力加入墙壁路径检查",
+      "修复游走NPC和长身怪物的身体节段可能越过墙壁的问题"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));
