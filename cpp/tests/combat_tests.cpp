@@ -1,4 +1,6 @@
 #include "test.h"
+#include "test_data.h"
+#include "server/systems/npcs.h"
 
 #include "server/replication.h"
 #include "server/squads.h"
@@ -4193,4 +4195,31 @@ TEST(cutter_overlap_keeps_contact_damage_without_separation) {
     CHECK_NEAR(a.world.get<Transform>(player).position.x, 1010, 1e-9);
     CHECK_NEAR(a.world.get<Motion>(player).velocity.lengthSq(), 0, 1e-9);
     CHECK_NEAR(a.world.get<Motion>(mob).velocity.lengthSq(), 0, 1e-9);
+}
+
+TEST(cutter_lets_the_flower_stay_inside_a_spawned_training_dummy) {
+    const auto& registry = testsupport::shippedContent();
+    Arena a;
+    Terrain terrain;
+    NpcSystem npcs;
+    MovementSystem movement;
+    const Entity dummy = npcs.spawnNpc(a.world, terrain, registry,
+        registry.mobIndex("target_dummy"), Rarity::Common, {1000, 1000}, Realm::Overworld, 0);
+    CHECK(dummy != NULL_ENTITY);
+    if (dummy == NULL_ENTITY) return;
+    const Vec2 home = a.world.get<Transform>(dummy).position;
+    const Vec2 inside = home + Vec2{5, 0};
+    const Entity player = a.player(inside);
+    a.world.add<PlayerInput>(player);
+    a.world.add<PlayerModifiers>(player).passThroughMobs = true;
+    movement.runPlayerPhase(a.world, terrain, 1000, net::kTickSeconds);
+    a.step(1000, registry);
+    CHECK_NEAR(distanceSq(a.world.get<Transform>(player).position, inside), 0, 1e-9);
+    CHECK_NEAR(a.world.get<Motion>(player).velocity.lengthSq(), 0, 1e-9);
+    CHECK(a.world.get<Health>(player).current < 100);
+
+    a.world.get<PlayerModifiers>(player).passThroughMobs = false;
+    movement.runPlayerPhase(a.world, terrain, 1000 + net::kTickMillis, net::kTickSeconds);
+    const double reach = a.world.get<Body>(player).radius + a.world.get<Body>(dummy).radius;
+    CHECK(distance(a.world.get<Transform>(player).position, home) >= reach - 1e-6);
 }

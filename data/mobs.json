@@ -1058,9 +1058,9 @@
         "image": "$leafbug_shiny",
         "ai_type": "neutral",
         "gardn_ai": true,
-        "spawn_weight": 0.02,
+        "spawn_weight": 0.03,
         "groups": {
-            "jungle": 0.02
+            "jungle": 0.03
         },
 
         "range": 100
@@ -1159,9 +1159,9 @@
         "image": "$firefly_magic",
         "ai_type": "neutral",
         "bee_ai": "always",
-        "spawn_weight": 0.05,
+        "spawn_weight": 0.075,
         "groups": {
-            "jungle": 0.05
+            "jungle": 0.075
         },
         "range": 100,
         "lightning": {

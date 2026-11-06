@@ -161,6 +161,7 @@ Entity NpcSystem::spawnNpc(World& world, const Terrain& terrain, const ContentRe
     npc.configIndex = mobIndex;
     npc.rarity = rarity;
     npc.service = config.npc.service;
+    npc.cutterPassable = config.id == "target_dummy";
     npc.home = position;
     npc.nextGlanceMillis = nowMillis;
     // Flies like its mob does when its mob flies like a bee, starting off on

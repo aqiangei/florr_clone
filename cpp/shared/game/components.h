@@ -1089,6 +1089,7 @@ struct Npc {
     /// Replicated with the NPC, so the window shows the recipe this one
     /// makes. 0 for every other NPC.
     std::uint8_t recipe = 0;
+    bool cutterPassable = false; ///< Training dummy body.
 };
 
 /// A nest that periodically produces escorts, up to a live cap.

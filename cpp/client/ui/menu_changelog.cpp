@@ -581,6 +581,9 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月5日（Cutter与水母区）",
      {"装备Cutter可与怪物重叠，不再互相挤开；接触伤害与墙壁碰撞保留",
       "水母区新增一个Apex名额，海洋最多同时两只，其余区域仍为一只"}},
+    {"2026年11月6日（木桩与稀有怪刷新）",
+     {"装备Cutter后可进入训练木桩内部测试DPS",
+      "魔法萤火虫与金色叶虫的自然刷新权重各提高50%"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

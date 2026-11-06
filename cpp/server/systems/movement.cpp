@@ -356,10 +356,12 @@ void MovementSystem::runWorldPhase(World& world, const Terrain& terrain,
     collideLooseBodies(world, terrain);
 }
 
-void MovementSystem::collectNpcDiscs() {
+void MovementSystem::collectNpcDiscs(World& world) {
     npcDiscs_.clear();
-    queries_->npcBodies.each([&](Entity, NpcTag&, Transform& transform, Body& body) {
-        npcDiscs_.push_back({transform.position, body.radius, transform.realm});
+    queries_->npcBodies.each([&](Entity e, NpcTag&, Transform& transform, Body& body) {
+        const auto* npc = world.tryGet<Npc>(e);
+        npcDiscs_.push_back({transform.position, body.radius, transform.realm,
+                             npc && npc->cutterPassable});
     });
 }
 
@@ -413,7 +415,7 @@ void MovementSystem::coastRingAnchors(World& world, const Terrain& terrain, doub
 
 void MovementSystem::movePlayers(World& world, const Terrain& terrain,
                                  double nowMillis, double dt) {
-    collectNpcDiscs();
+    collectNpcDiscs(world);
     collectLooseDiscs();
 
     queries_->players.each([&](Entity e, PlayerTag&, Transform& transform, Motion& motion,
@@ -482,7 +484,10 @@ void MovementSystem::movePlayers(World& world, const Terrain& terrain,
         // Loose petals before NPCs: a wax gives way and an NPC does not, so an
         // NPC is the last word on where the flower may stand, as a wall is.
         if (!looseDiscs_.empty()) shoveLooseBodies(terrain, transform, body);
-        if (!npcDiscs_.empty()) pushOutOfNpcs(terrain, transform, body.radius);
+        if (!npcDiscs_.empty()) {
+            const auto* worn = world.tryGet<PlayerModifiers>(e);
+            pushOutOfNpcs(terrain, transform, body.radius, worn && worn->passThroughMobs);
+        }
         // TypeScript's stepPlayerMovement returns the friction-integrated
         // velocity unchanged when wall resolution alters the position. Keeping
         // the attempted velocity is observable on the following tick (the
@@ -517,7 +522,7 @@ void MovementSystem::shoveLooseBodies(const Terrain& terrain, Transform& transfo
 void MovementSystem::collideLooseBodies(World& world, const Terrain& terrain) {
     collectLooseDiscs();
     if (looseDiscs_.empty()) return;
-    collectNpcDiscs();
+    collectNpcDiscs(world);
     const ContentRegistry& registry = content();
 
     // How far separation may have carried a mob from where it filed it in
@@ -598,10 +603,10 @@ void MovementSystem::collideLooseBodies(World& world, const Terrain& terrain) {
 }
 
 void MovementSystem::pushOutOfNpcs(const Terrain& terrain, Transform& transform,
-                                   double radius) const {
+                                   double radius, bool passThroughMobs) const {
     bool moved = false;
     for (const NpcDisc& npc : npcDiscs_) {
-        if (npc.realm != transform.realm) continue;
+        if (npc.realm != transform.realm || (passThroughMobs && npc.cutterPassable)) continue;
         const Vec2 offset = transform.position - npc.position;
         const double reach = npc.radius + radius;
         const double gapSq = offset.lengthSq();

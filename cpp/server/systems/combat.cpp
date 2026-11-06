@@ -2500,7 +2500,9 @@ void CombatSystem::resolveMelee(World& world, const SpatialGrid& grid, double no
                                           canDamage(world, source.attacker, victim);
             if (mobTouchesPlayer) {
                 const auto* worn = world.tryGet<PlayerModifiers>(victim);
-                const bool phase = source.isMobBody && worn && worn->passThroughMobs;
+                const auto* npc = source.isNpcBody ? world.tryGet<Npc>(source.attacker) : nullptr;
+                const bool phase = worn && worn->passThroughMobs &&
+                    (source.isMobBody || (npc && npc->cutterPassable));
                 // resolvePlayerMobContact() breaks after its first collision:
                 // one flower wedged in a pile takes one hit/bump per tick, not
                 // a full stack. Preserve that rule across C++'s source-first
