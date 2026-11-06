@@ -12,6 +12,7 @@ namespace ui {
 
 const char* rarityTr(Rarity r);
 const char* skillTr(SkillId id, int tier = 0);
+bool skillMatchesSearch(SkillId id, int tier, const std::string& query);
 const char* petalNameTr(const std::string& id, const char* fallback);
 bool petalMatchesSearch(const std::string& id, const std::string& name, const std::string& query);
 bool mobMatchesSearch(const std::string& id, const std::string& name, const std::string& query);

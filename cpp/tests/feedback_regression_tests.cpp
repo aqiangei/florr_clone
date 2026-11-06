@@ -88,3 +88,17 @@ TEST(feedback_splitter_still_separates_on_open_ground) {
     CHECK_NEAR(halves[0].x, centre.x - 32.0, 0.001);
     CHECK_NEAR(halves[1].x, centre.x + 32.0, 0.001);
 }
+
+TEST(feedback_search_talents_matches_both_languages_and_distinct_tier_names) {
+    const auto previous = ui::language();
+    for (auto lang : {ui::Language::En, ui::Language::Zh}) {
+        ui::setLanguage(lang);
+        CHECK(ui::skillMatchesSearch(SkillId::PlayerHealth, 0, "花朵生命"));
+        CHECK(ui::skillMatchesSearch(SkillId::PlayerHealth, 0, "  FLOWER health "));
+        CHECK(ui::skillMatchesSearch(SkillId::Duplicator, 1, "三倍复制"));
+        CHECK(ui::skillMatchesSearch(SkillId::Duplicator, 1, "TRIPLICATOR"));
+        CHECK(!ui::skillMatchesSearch(SkillId::Duplicator, 0, "triplicator"));
+        CHECK(!ui::skillMatchesSearch(SkillId::Damage, 0, "磁力"));
+    }
+    ui::setLanguage(previous);
+}

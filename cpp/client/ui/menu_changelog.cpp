@@ -587,6 +587,9 @@ constexpr ChangelogEntry kChangelog[] = {
     {"2026年11月6日（垃圾堆外观）",
      {"修复垃圾堆移动时碎片反复换样的问题",
       "Apex垃圾堆使用更紧凑的碎片布局，减少巨型花瓣遮挡"}},
+    {"2026年11月6日（天赋搜索）",
+     {"天赋树支持中英文搜索，自动定位并突出显示匹配天赋",
+      "按回车或点击下一个可在匹配分支之间切换"}},
 };
 
 constexpr int kEntryCount = static_cast<int>(sizeof(kChangelog) / sizeof(kChangelog[0]));

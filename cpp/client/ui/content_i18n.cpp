@@ -514,8 +514,8 @@ const char* rarityTr(Rarity r) {
     return zh() ? kZh[i] : kEn[i];
 }
 
-const char* skillTr(SkillId id, int tier) {
-    if (id == SkillId::Duplicator && tier == 1) return zh() ? "三倍复制" : "Triplicator";
+static const char* skillName(SkillId id, int tier, bool chinese) {
+    if (id == SkillId::Duplicator && tier == 1) return chinese ? "三倍复制" : "Triplicator";
     static constexpr const char* kEn[] = {
         "Damage","Petal Health","Flower Health","Healing","Absorption","Reload",
         "Second Chance","Pet Health","Duplicator","Magnetism","Prestige"};
@@ -524,7 +524,11 @@ const char* skillTr(SkillId id, int tier) {
         "第二次机会","宠物生命","复制","磁力","声望"};
     const int i = static_cast<int>(id);
     if (i < 0 || i >= kSkillCount) return "";
-    return zh() ? kZh[i] : kEn[i];
+    return chinese ? kZh[i] : kEn[i];
+}
+
+const char* skillTr(SkillId id, int tier) {
+    return skillName(id, tier, zh());
 }
 
 const char* petalNameTr(const std::string& id, const char* fallback) {
@@ -547,6 +551,11 @@ static bool matchesContentSearch(const Pair* names, std::size_t count,
         if (id == names[i].id) return std::string(names[i].zh).find(needle) != std::string::npos;
     return false;
 }
+bool skillMatchesSearch(SkillId id, int tier, const std::string& query) {
+    return matchesContentSearch(nullptr, 0, skillName(id, tier, true),
+                                skillName(id, tier, false), query);
+}
+
 bool petalMatchesSearch(const std::string& id, const std::string& name, const std::string& query) {
     return matchesContentSearch(kPetals, sizeof(kPetals) / sizeof(kPetals[0]), id, name, query);
 }

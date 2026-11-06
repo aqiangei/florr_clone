@@ -925,6 +925,7 @@ Rect TalentsPanel::bounds(int, int viewHeight) {
 
 void TalentsPanel::reset() {
     if (!laidOut_) layout();
+    searchField_.blur();
     dragging_ = false;
     pressedNode_ = -1;
     hoveredNode_ = -1;
@@ -1013,12 +1014,54 @@ bool TalentsPanel::render(MenuContext& ctx) {
     const bool overReset = live && anyOwned && resetHit.contains(mouse);
     if (!overReset) confirmingReset_ = false;
 
+    const Rect searchRect{panel.x + panel.w * 0.5 - 180.0, rowMiddle + 20.0, 248.0, 28.0};
+    const Rect nextRect{searchRect.right() + 6.0, searchRect.y, 106.0, searchRect.h};
+    if (live) {
+        trackTextMouse(ctx.window, searchField_, searchRect,
+                       inputFieldRun(searchRect, search_, searchField_), search_, ctx.timeSeconds);
+        if (searchRect.contains(mouse)) ctx.window.setCursorShape(CursorShape::Text);
+    }
+
+    bool changed = false;
+    bool next = live && ctx.pressed() && nextRect.contains(mouse);
+    if (live && searchField_.focused) {
+        ctx.wantsText = true;
+        TextEditOptions typing;
+        typing.maxBytes = 128;
+        changed = editText(ctx.window, search_, searchField_, ctx.timeSeconds, typing);
+        next |= ctx.window.keyPressed(Key::Enter);
+        if (ctx.window.keyPressed(Key::Escape)) searchField_.blur();
+    }
+    const bool searching = search_.find_first_not_of(" \t\r\n") != std::string::npos;
+    const bool overSearch = searchRect.contains(mouse) || (searching && nextRect.contains(mouse));
+    if (changed) {
+        searchTargets_.clear();
+        searchTarget_ = 0;
+        std::array<bool, kSkillCount> found{};
+        for (std::size_t i = 0; searching && i < nodes_.size(); ++i) {
+            Node& node = nodes_[i];
+            node.searchMatch = skillMatchesSearch(node.skill, node.tier, search_);
+            const auto skill = static_cast<std::size_t>(node.skill);
+            if (node.searchMatch && !found[skill]) {
+                searchTargets_.push_back(i);
+                found[skill] = true;
+            }
+        }
+    } else if (next && !searchTargets_.empty()) {
+        searchTarget_ = (searchTarget_ + 1) % searchTargets_.size();
+    }
+    if ((changed || next) && !searchTargets_.empty()) {
+        scrollTarget_ = nodes_[searchTargets_[searchTarget_]].grid.x;
+        dragging_ = false;
+        pressedNode_ = -1;
+    }
+
     // -- scroll ---------------------------------------------------------------
     if (dragging_) {
         scrollTarget_ += (dragLastX_ - mouse.x) / kStep;
         dragLastX_ = mouse.x;
     }
-    if (live && panel.contains(mouse)) scrollTarget_ -= ctx.wheel();
+    if (live && panel.contains(mouse) && !overSearch) scrollTarget_ -= ctx.wheel();
     scrollTarget_ = std::clamp(scrollTarget_, 0.0, maxColumn_);
     scroll_ += (scrollTarget_ - scroll_) * ease(dtMs, kScrollRate);
 
@@ -1038,7 +1081,7 @@ bool TalentsPanel::render(MenuContext& ctx) {
     // Exactly one node answers the cursor: the last drawn, which is the one
     // on top, and never through the chrome drawn over the tree.
     int hovered = -1;
-    if (live && !dragging_ && inner.contains(mouse) && !closeHit.contains(mouse) &&
+    if (live && !dragging_ && !overSearch && inner.contains(mouse) && !closeHit.contains(mouse) &&
         !resetHit.contains(mouse)) {
         for (int i = static_cast<int>(nodes_.size()) - 1; i >= 0; --i) {
             const Node& node = nodes_[static_cast<std::size_t>(i)];
@@ -1053,7 +1096,7 @@ bool TalentsPanel::render(MenuContext& ctx) {
 
     // -- input ----------------------------------------------------------------
     bool keepOpen = true;
-    if (live && ctx.pressed() && panel.contains(mouse)) {
+    if (live && ctx.pressed() && panel.contains(mouse) && !overSearch) {
         if (overClose) {
             closeHeld_ = true;
         } else if (overReset) {
@@ -1228,6 +1271,8 @@ bool TalentsPanel::render(MenuContext& ctx) {
         const double scale = (1.0 + 0.1 * node.hover) * (1.0 + 0.1 * node.wobble) * pulse;
 
         canvas.save();
+        if (searching && !searchTargets_.empty() && !node.searchMatch)
+            canvas.setGlobalAlpha(canvas.globalAlpha() * 0.35f);
         canvas.translate(static_cast<float>(node.at.x), static_cast<float>(node.at.y));
         canvas.scale(static_cast<float>(scale), static_cast<float>(scale));
         setFill(canvas, rim);
@@ -1276,6 +1321,20 @@ bool TalentsPanel::render(MenuContext& ctx) {
     text(canvas, menuTitle(MenuId::Talents), panel.x + panel.w * 0.5, rowMiddle,
          florrLabel(kTitleSize, kPaper, Align::Centre));
     drawFlorrClose(canvas, closeSquare, overClose, overClose && closeHeld_);
+    inputField(canvas, searchRect, search_, trEnZh("Search talents", "搜索天赋"),
+               searchField_.focused, ctx.timeSeconds, &searchField_);
+    if (searching) {
+        const bool found = !searchTargets_.empty();
+        const std::string label = found
+            ? std::string(trEnZh("Next", "下一个")) + " " + std::to_string(searchTarget_ + 1) +
+                "/" + std::to_string(searchTargets_.size())
+            : trEnZh("No match", "无匹配");
+        drawFlorrButton(canvas, nextRect, found ? kTalentsSkin.border : kResetIdleFace,
+                        kButtonBorder, kButtonRadius, live && found && nextRect.contains(mouse),
+                        false);
+        text(canvas, label, nextRect.x + nextRect.w * 0.5, nextRect.y + nextRect.h * 0.5,
+             florrLabel(14, kPaper, Align::Centre));
+    }
     // florr paints the rim a second time, so nothing inside overruns it.
     drawFlorrRim(canvas, panel, kTalentsSkin.border);
 

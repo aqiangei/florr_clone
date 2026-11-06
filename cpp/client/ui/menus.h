@@ -1244,12 +1244,17 @@ private:
         bool requested = false;
         /// True when `requested` is a refund rather than a purchase.
         bool refunding = false;
+        bool searchMatch = false;
         double requestedMs = 0;
     };
 
     void layout();
 
     std::vector<Node> nodes_;
+    std::string search_;
+    ui::TextFieldState searchField_;
+    std::vector<std::size_t> searchTargets_;
+    std::size_t searchTarget_ = 0;
     bool laidOut_ = false;
     /// The rightmost column, which the scroll stops at.
     double maxColumn_ = 0;
